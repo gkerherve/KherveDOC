@@ -28,7 +28,7 @@ import {
 } from '@blocknote/react';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { FindAndReplace } from '@tiptap/extension-find-and-replace';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Awareness } from 'y-protocols/awareness';
@@ -66,6 +66,7 @@ import BlockNoteAI from './AI';
 import { BlockNoteSuggestionMenu } from './BlockNoteSuggestionMenu';
 import { BlockNoteToolbar } from './BlockNoteToolBar/BlockNoteToolbar';
 import { DocsSideMenu } from './DocsSideMenu/DocsSideMenu';
+import { KherveToolbar } from './KherveToolbar/KherveToolbar';
 import { CalloutBlock, PdfBlock, UploadLoaderBlock } from './custom-blocks';
 const AIMenu = BlockNoteAI?.AIMenu;
 const AIMenuController = BlockNoteAI?.AIMenuController;
@@ -110,6 +111,9 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
   const { setEditor } = useEditorStore();
   const { themeTokens } = useCunninghamTheme();
   const refEditorContainer = useRef<HTMLDivElement>(null);
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(
+    null,
+  );
   useSaveDoc(doc.id, provider.document);
 
   const { i18n, t } = useTranslation();
@@ -331,6 +335,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
           />
         </Box>
       )}
+      <div ref={setToolbarTarget} className="--docs--kherve-toolbar-slot" />
       <BlockNoteView
         className="--docs--main-editor"
         editor={editor}
@@ -346,6 +351,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
         {aiBlockNoteAllowed && AIMenuController && AIMenu && (
           <AIMenuController aiMenu={AIMenu} />
         )}
+        <KherveToolbar target={toolbarTarget} aiAllowed={aiBlockNoteAllowed} />
         <BlockNoteSuggestionMenu aiAllowed={aiBlockNoteAllowed} />
         <BlockNoteToolbar aiAllowed={aiBlockNoteAllowed} />
         <DocsSideMenu />

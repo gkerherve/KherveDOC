@@ -37,6 +37,23 @@ export const BlockNoteSuggestionMenu = ({
 }: {
   aiAllowed: boolean;
 }) => {
+  const slashMenuItems = useDocsSlashMenuItems(aiAllowed);
+
+  const getSlashMenuItems = useMemo(
+    () => async (query: string) =>
+      Promise.resolve(filterSuggestionItems(slashMenuItems, query)),
+    [slashMenuItems],
+  );
+
+  return (
+    <SuggestionMenuController
+      triggerCharacter="/"
+      getItems={getSlashMenuItems}
+    />
+  );
+};
+
+export const useDocsSlashMenuItems = (aiAllowed: boolean) => {
   const editor = useBlockNoteEditor<
     DocsBlockSchema,
     DocsInlineContentSchema,
@@ -49,7 +66,7 @@ export const BlockNoteSuggestionMenu = ({
 
   const getInterlinkingMenuItems = useGetInterlinkingMenuItems();
 
-  const getSlashMenuItems = useMemo(() => {
+  return useMemo(() => {
     // We insert it after the "Code Block" item to have the interlinking block displayed after the basic blocks
     const defaultMenu = getDefaultReactSlashMenuItems(editor);
 
@@ -70,14 +87,11 @@ export const BlockNoteSuggestionMenu = ({
         'callout',
     );
 
-    const newSlashMenuItems = [
+    return [
       ...combinedMenu.slice(0, index + 1),
       ...getInterlinkingMenuItems(editor, t),
       ...combinedMenu.slice(index + 1),
     ];
-
-    return async (query: string) =>
-      Promise.resolve(filterSuggestionItems(newSlashMenuItems, query));
   }, [
     editor,
     t,
@@ -86,11 +100,4 @@ export const BlockNoteSuggestionMenu = ({
     aiAllowed,
     getInterlinkingMenuItems,
   ]);
-
-  return (
-    <SuggestionMenuController
-      triggerCharacter="/"
-      getItems={getSlashMenuItems}
-    />
-  );
 };
