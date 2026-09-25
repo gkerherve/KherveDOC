@@ -26,7 +26,7 @@ services:
 
   minio:
     user: ${DOCKER_USER:-1000}
-    image: quay.io/minio/minio
+    image: pgsty/silo
     environment:
       - MINIO_ROOT_USER=impress
       - MINIO_ROOT_PASSWORD=password
@@ -38,22 +38,23 @@ services:
       interval: 1s
       timeout: 20s
       retries: 300
-    entrypoint: ""
-    command: minio server --console-address :9001 /data
+    command: server --console-address :9001 /data
     volumes:
       - ./data/media:/data
 
   createbuckets:
-    image: quay.io/minio/mc
+    image: pgsty/mc
     depends_on:
       minio:
         condition: service_healthy
         restart: true
+    # Lines end on `&&`, not `\`: yaml folds them with a space, so a trailing
+    # backslash escapes that space and breaks every command after the first.
     entrypoint: >
       sh -c "
-      /usr/bin/mc alias set impress http://minio:9000 impress password && \
-      /usr/bin/mc mb impress/impress-media-storage && \
-      /usr/bin/mc version enable impress/impress-media-storage && \
+      /usr/bin/mc alias set impress http://minio:9000 impress password &&
+      /usr/bin/mc mb --ignore-existing impress/impress-media-storage &&
+      /usr/bin/mc version enable impress/impress-media-storage &&
       exit 0;"
 
   app-dev:
@@ -260,6 +261,8 @@ services:
 
   docspec:
     image: ghcr.io/docspec/api:1.21.4
+    # Published for amd64 only; runs emulated on Apple Silicon.
+    platform: linux/amd64
     ports:
       - "4000:3000"
 
