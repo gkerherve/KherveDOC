@@ -8,9 +8,15 @@ import { docxDefaultSchemaMappings } from '@blocknote/xl-docx-exporter';
 import { fontSizePt } from '@/docs/doc-editor/components/custom-styles';
 
 import {
+  blockMappingBulletListItemDocx,
   blockMappingCalloutDocx,
+  blockMappingCheckListItemDocx,
+  blockMappingHeadingDocx,
   blockMappingImageDocx,
+  blockMappingNumberedListItemDocx,
+  blockMappingParagraphDocx,
   blockMappingQuoteDocx,
+  blockMappingToggleListItemDocx,
   blockMappingUploadLoaderDocx,
 } from './blocks-mapping';
 import { inlineContentMappingInterlinkingLinkDocx } from './inline-content-mapping';
@@ -20,6 +26,12 @@ export const docxDocsSchemaMappings: DocsExporterDocx['mappings'] = {
   ...docxDefaultSchemaMappings,
   blockMapping: {
     ...docxDefaultSchemaMappings.blockMapping,
+    paragraph: blockMappingParagraphDocx,
+    heading: blockMappingHeadingDocx,
+    bulletListItem: blockMappingBulletListItemDocx,
+    numberedListItem: blockMappingNumberedListItemDocx,
+    checkListItem: blockMappingCheckListItemDocx,
+    toggleListItem: blockMappingToggleListItemDocx,
     callout: blockMappingCalloutDocx,
     // We're reusing the file block mapping for PDF blocks; both share the same
     // implementation signature, so we can reuse the handler directly.

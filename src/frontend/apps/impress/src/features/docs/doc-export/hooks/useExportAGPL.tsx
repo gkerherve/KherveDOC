@@ -4,7 +4,6 @@
  */
 import { DOCXExporter } from '@blocknote/xl-docx-exporter';
 import { ODTExporter } from '@blocknote/xl-odt-exporter';
-import { PDFExporter } from '@blocknote/xl-pdf-exporter';
 import { DocumentProps, pdf } from '@react-pdf/renderer';
 import jsonemoji from 'emoji-datasource-apple' with { type: 'json' };
 import i18next from 'i18next';
@@ -14,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { DocsBlockNoteEditor } from '@/docs/doc-editor/types';
 import { Doc } from '@/docs/doc-management/types';
 
+import { KhervePDFExporter } from '../KhervePDFExporter';
 import { exportCorsResolveFileUrl } from '../api/exportResolveFileUrl';
 import { docxDocsSchemaMappings } from '../mappingDocx';
 import { odtDocsSchemaMappings } from '../mappingODT';
@@ -30,29 +30,33 @@ export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
     const exportDocument = editor.document;
     let blobExport: Blob | undefined = undefined;
     if (format === 'pdf') {
-      const exporter = new PDFExporter(editor.schema, pdfDocsSchemaMappings, {
-        resolveFileUrl: async (url) => exportCorsResolveFileUrl(doc.id, url),
-        emojiSource: {
-          format: 'png',
-          builder(code) {
-            const emojisFound = jsonemoji.filter(
-              (e) =>
-                e.unified.split('-')[0].toLowerCase() ===
-                code.split('-')[0].toLowerCase(),
-            );
+      const exporter = new KhervePDFExporter(
+        editor.schema,
+        pdfDocsSchemaMappings,
+        {
+          resolveFileUrl: async (url) => exportCorsResolveFileUrl(doc.id, url),
+          emojiSource: {
+            format: 'png',
+            builder(code) {
+              const emojisFound = jsonemoji.filter(
+                (e) =>
+                  e.unified.split('-')[0].toLowerCase() ===
+                  code.split('-')[0].toLowerCase(),
+              );
 
-            const emoji = emojisFound.find((e) =>
-              e.unified.toLocaleLowerCase().includes(code.toLowerCase()),
-            );
+              const emoji = emojisFound.find((e) =>
+                e.unified.toLocaleLowerCase().includes(code.toLowerCase()),
+              );
 
-            if (emoji) {
-              return `/assets/fonts/emoji/${emoji.image}`;
-            }
+              if (emoji) {
+                return `/assets/fonts/emoji/${emoji.image}`;
+              }
 
-            return '/assets/fonts/emoji/fallback.png';
+              return '/assets/fonts/emoji/fallback.png';
+            },
           },
         },
-      });
+      );
       const rawPdfDocument = (await exporter.toReactPDFDocument(
         exportDocument,
       )) as React.ReactElement<DocumentProps>;

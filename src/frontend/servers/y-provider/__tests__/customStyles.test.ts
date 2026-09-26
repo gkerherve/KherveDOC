@@ -38,6 +38,23 @@ describe('custom text styles', () => {
     ]);
   });
 
+  test('keep paragraph spacing, indent and style name', () => {
+    const props = {
+      lineSpacing: '1.5',
+      spaceBefore: '12',
+      spaceAfter: '6',
+      firstLineIndent: '1.25',
+      styleName: 'Abstract',
+    };
+    const ydoc = editor.blocksToYDoc(
+      [{ type: 'paragraph', props, content: 'Spaced' }],
+      'document-store',
+    );
+    const [paragraph] = editor.yDocToBlocks(ydoc, 'document-store');
+
+    expect(paragraph.props).toMatchObject(props);
+  });
+
   test('render to HTML', async () => {
     const html = await editor.blocksToHTMLLossy(blocks);
 

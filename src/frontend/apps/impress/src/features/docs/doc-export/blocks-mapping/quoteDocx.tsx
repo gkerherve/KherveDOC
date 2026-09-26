@@ -1,5 +1,6 @@
 import { Paragraph } from 'docx';
 
+import { docxParagraphFormatting } from '../paragraphFormatting';
 import { DocsExporterDocx } from '../types';
 import { docxBlockPropsToStyles } from '../utils';
 
@@ -25,7 +26,12 @@ export const blockMappingQuoteDocx: DocsExporterDocx['mappings']['blockMapping']
 
     return new Paragraph({
       ...docxBlockPropsToStyles(block.props, exporter.options.colors),
-      spacing: { before: 10, after: 10 },
+      ...docxParagraphFormatting(block.props),
+      spacing: {
+        before: 10,
+        after: 10,
+        ...docxParagraphFormatting(block.props).spacing,
+      },
       border: {
         left: {
           color: '#cecece',

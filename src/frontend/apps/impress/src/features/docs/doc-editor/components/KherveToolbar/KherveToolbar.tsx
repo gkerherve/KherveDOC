@@ -25,6 +25,7 @@ import {
   DocsStyleSchema,
 } from '../../types';
 import { useDocsSlashMenuItems } from '../BlockNoteSuggestionMenu';
+import { ParagraphProps } from '../custom-blocks/paragraphProps';
 import {
   FONT_FAMILIES,
   FONT_SIZES,
@@ -32,6 +33,7 @@ import {
   fontStack,
 } from '../custom-styles';
 
+import { ParagraphSpacingControls } from './ParagraphSpacingControls';
 import { WordCount } from './WordCount';
 import {
   ColorKind,
@@ -152,6 +154,14 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
         blockProps: props,
         textAlignment: (props.textAlignment as Alignment) ?? 'left',
         hasAlignment: 'textAlignment' in props,
+        hasParagraphProps: 'lineSpacing' in props,
+        paragraph: {
+          lineSpacing: String(props.lineSpacing ?? 'default'),
+          spaceBefore: String(props.spaceBefore ?? 'default'),
+          spaceAfter: String(props.spaceAfter ?? 'default'),
+          firstLineIndent: String(props.firstLineIndent ?? 'default'),
+          styleName: String(props.styleName ?? ''),
+        },
         hasText: Array.isArray(block.content),
         // Tables hold styled text too, just not as a plain inline array.
         canFormat: block.content !== undefined,
@@ -238,6 +248,17 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
         for (const block of selectedBlocks()) {
           if ('textAlignment' in block.props) {
             editor.updateBlock(block, { props: { textAlignment } });
+          }
+        }
+      }),
+    );
+
+  const setParagraphProps = (props: ParagraphProps) =>
+    run(() =>
+      editor.transact(() => {
+        for (const block of selectedBlocks()) {
+          if ('lineSpacing' in block.props) {
+            editor.updateBlock(block, { props });
           }
         }
       }),
@@ -749,6 +770,11 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
           onClick={() => setAlignment(value)}
         />
       ))}
+      <ParagraphSpacingControls
+        disabled={!state.hasParagraphProps}
+        current={state.paragraph}
+        onChange={setParagraphProps}
+      />
       <Separator />
 
       {listButtons.map(({ type, icon, label }) => (

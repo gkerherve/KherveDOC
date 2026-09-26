@@ -9,7 +9,10 @@ import { isFontSize } from '@/docs/doc-editor/components/custom-styles';
 
 import {
   blockMappingCalloutODT,
+  blockMappingHeadingODT,
   blockMappingImageODT,
+  blockMappingParagraphODT,
+  blockMappingQuoteODT,
   blockMappingUploadLoaderODT,
 } from './blocks-mapping';
 import { inlineContentMappingInterlinkingLinkODT } from './inline-content-mapping';
@@ -23,6 +26,9 @@ export const odtDocsSchemaMappings: DocsExporterODT['mappings'] = {
   ...odtDefaultSchemaMappings,
   blockMapping: {
     ...odtDefaultSchemaMappings.blockMapping,
+    paragraph: blockMappingParagraphODT,
+    heading: blockMappingHeadingODT,
+    quote: blockMappingQuoteODT,
     callout: blockMappingCalloutODT,
     image: blockMappingImageODT,
     // We're reusing the file block mapping for PDF blocks

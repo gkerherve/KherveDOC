@@ -12,3 +12,5 @@ export * from './tablePDF';
 export * from './uploadLoaderDocx';
 export * from './uploadLoaderODT';
 export * from './uploadLoaderPDF';
+export * from './textBlocksDocx';
+export * from './textBlocksODT';

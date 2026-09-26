@@ -74,6 +74,8 @@ const AIMenuController = BlockNoteAI?.AIMenuController;
 const useAI = BlockNoteAI?.useAI;
 const localesBNAI = BlockNoteAI?.localesAI || {};
 import { createSafeCodeBlockSpec } from './custom-blocks/CodeBlock';
+import { ParagraphFormattingStyle } from './custom-blocks/ParagraphFormattingStyle';
+import { withParagraphProps } from './custom-blocks/paragraphProps';
 import { InterlinkingLinkInlineContent } from './custom-inline-content';
 import { customStyleSpecs } from './custom-styles';
 import XLMultiColumn from './xl-multi-column';
@@ -85,6 +87,13 @@ const baseBlockNoteSchema = withPageBreak(
   BlockNoteSchema.create({
     blockSpecs: {
       ...defaultBlockSpecs,
+      paragraph: withParagraphProps(defaultBlockSpecs.paragraph),
+      heading: withParagraphProps(defaultBlockSpecs.heading),
+      quote: withParagraphProps(defaultBlockSpecs.quote),
+      bulletListItem: withParagraphProps(defaultBlockSpecs.bulletListItem),
+      numberedListItem: withParagraphProps(defaultBlockSpecs.numberedListItem),
+      checkListItem: withParagraphProps(defaultBlockSpecs.checkListItem),
+      toggleListItem: withParagraphProps(defaultBlockSpecs.toggleListItem),
       callout: CalloutBlock(),
       codeBlock: createSafeCodeBlockSpec(),
       diagram: createReactDiagramBlockSpec(),
@@ -324,6 +333,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
   return (
     <Box ref={refEditorContainer} $height="100%">
       <DocsEditorStyle />
+      <ParagraphFormattingStyle />
       <DocsCommentsStyle
         canSeeComment={canSeeComment}
         currentUserAvatarUrl={currentUserAvatarUrl}
@@ -432,6 +442,7 @@ export const BlockNoteReader = ({
   return (
     <Box>
       <DocsEditorStyle />
+      <ParagraphFormattingStyle />
       <DocsCommentsStyle canSeeComment={false} />
       <BlockNoteView
         className="--docs--main-editor"

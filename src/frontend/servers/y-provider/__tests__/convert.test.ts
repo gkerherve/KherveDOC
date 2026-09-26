@@ -29,6 +29,13 @@ import {
 const expectedMarkdown = '# Example document\n\nLorem ipsum dolor sit amet.';
 const expectedHTML =
   '<h1>Example document</h1><p>Lorem ipsum dolor sit amet.</p>';
+const defaultParagraphProps = {
+  lineSpacing: 'default',
+  spaceBefore: 'default',
+  spaceAfter: 'default',
+  firstLineIndent: 'default',
+  styleName: '',
+};
 const expectedBlocks = [
   {
     children: [],
@@ -46,6 +53,7 @@ const expectedBlocks = [
       level: 1,
       textAlignment: 'left',
       textColor: 'default',
+      ...defaultParagraphProps,
     },
     type: 'heading',
   },
@@ -63,6 +71,7 @@ const expectedBlocks = [
       backgroundColor: 'default',
       textAlignment: 'left',
       textColor: 'default',
+      ...defaultParagraphProps,
     },
     type: 'paragraph',
   },
@@ -278,7 +287,9 @@ describe('Conversion Testing', () => {
     const responseBuffer = Buffer.from(response.body as Buffer);
     const ydoc = new Y.Doc();
     Y.applyUpdate(ydoc, responseBuffer);
-    const decodedBlocks = editor.yDocToBlocks(ydoc, 'document-store');
+    const decodedBlocks = ServerBlockNoteEditor.create({
+      schema: docsBlockNoteSchema,
+    }).yDocToBlocks(ydoc, 'document-store');
 
     expect(decodedBlocks).toStrictEqual(expectedBlocks);
     expect(destroySpy).toHaveBeenCalledTimes(1);
