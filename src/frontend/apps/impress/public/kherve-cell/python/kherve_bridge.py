@@ -14,6 +14,7 @@ the Free Software Foundation, either version 3 of the License, or
 import json
 
 from khervesheet.core.engine import Workbook
+from khervesheet.core.python import PythonRuntime
 
 _wb = Workbook()
 _names = {}  # sheet id → name
@@ -40,10 +41,15 @@ def reset(payload):
     """Start over from the shared document: sheets and cell sources.
 
     payload: {"sheets": [{"id", "name", "cells": [[r, c, source]…],
-                          "formats": [[r, c, number_format]…]}…]}"""
+                          "formats": [[r, c, number_format]…]}…],
+              "trusted": [hash of each =PY source the user lets run]}"""
     global _wb
     data = json.loads(payload)
+    old = _wb
     _wb = Workbook()
+    # Python keeps its namespace; only trusted code runs.
+    _wb.python = old.python or PythonRuntime()
+    _wb.trusted = set(data.get("trusted") or [])
     _names.clear()
     cells = {}
     for s in data["sheets"]:
@@ -229,3 +235,28 @@ def solve(payload):
         "variables": [[r, c, f"{x:.15g}"]
                       for (r, c), x in zip(variables, outcome.x)],
     })
+
+
+def set_trusted(payload):
+    """payload: {"trusted": [hashes]} — run the =PY cells now trusted."""
+    data = json.loads(payload)
+    _wb.python = _wb.python or PythonRuntime()
+    return json.dumps(_changes(_wb.enable_python(
+        trusted=set(data.get("trusted") or []))))
+
+
+def python_outputs(payload):
+    """What =PY cells produced besides their text, by sheet id:
+    {id: {"figures": [[r, c, svg]…], "errors": [[r, c, traceback]…],
+          "stdout": [[r, c, text]…]}} (sheets without any are left out)."""
+    out = {}
+    for sid in _names:
+        sheet = _sheet(sid)
+        if not (sheet.py_figures or sheet.py_errors or sheet.py_stdout):
+            continue
+        out[sid] = {
+            "figures": [[r, c, svg] for (r, c), svg in sheet.py_figures.items()],
+            "errors": [[r, c, e] for (r, c), e in sheet.py_errors.items()],
+            "stdout": [[r, c, t] for (r, c), t in sheet.py_stdout.items()],
+        }
+    return json.dumps(out)

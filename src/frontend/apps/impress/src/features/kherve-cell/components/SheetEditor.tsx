@@ -22,10 +22,16 @@ import { currentRegion, rangeRef, suggestChart } from '../model/charts';
 import { fillEdits } from '../model/fill';
 import { CellFormat, address, parseAddress } from '../model/layout';
 import { fromTsv, shiftFormula, toTsv } from '../model/shift';
-import type { SheetWorkbook } from '../model/workbook';
+import { type SheetWorkbook, isPython } from '../model/workbook';
 
 import { ChartLayer, chartCss } from './ChartLayer';
 import { ChartPanel, chartPanelCss } from './ChartPanel';
+import {
+  PythonApproval,
+  PythonFigures,
+  PythonInfo,
+  pythonCss,
+} from './PythonCells';
 import { MenuItem, SheetContextMenu, menuCss } from './SheetContextMenu';
 import {
   CellPos,
@@ -83,6 +89,7 @@ export const SheetEditor = ({
       chartCss +
       chartPanelCss +
       solverCss +
+      pythonCss +
       editorCss,
   );
 
@@ -132,7 +139,7 @@ const SheetWorkbookView = ({
   const [chartPanel, setChartPanel] = useState<string | null>(null);
   const [solverOpen, setSolverOpen] = useState(false);
   const editorRef = useRef<HTMLInputElement | null>(null);
-  const barRef = useRef<HTMLInputElement | null>(null);
+  const barRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const clip = useRef<Clip | null>(null);
   const picked = useRef<{ start: number; end: number } | null>(null);
@@ -172,8 +179,14 @@ const SheetWorkbookView = ({
   useEffect(() => {
     if (editing !== null && editOrigin === 'cell') {
       editorRef.current?.focus();
+    } else if (editing !== null && editOrigin === 'bar') {
+      const bar = barRef.current;
+      if (bar && document.activeElement !== bar) {
+        bar.focus();
+        bar.setSelectionRange(bar.value.length, bar.value.length);
+      }
     }
-  }, [editing === null, editOrigin]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editing === null, editOrigin, isPython(editing ?? '')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const focusGrid = () => gridRef.current?.focus();
 
@@ -218,11 +231,17 @@ const SheetWorkbookView = ({
     }
     picked.current = null;
     setEditMode(mode);
-    setEditOrigin(origin);
+    // Python is written in the formula bar, which takes several lines.
+    setEditOrigin(isPython(value) ? 'bar' : origin);
     setEditing(value);
   };
 
   const commit = (move?: CellPos) => {
+    if (editing !== null && /^\s*=PY\s*$/i.test(editing)) {
+      // "=PY" alone: now write the code, in the formula bar.
+      startEdit('=PY\n', 'edit', 'bar');
+      return;
+    }
     if (editing !== null && activeId) {
       if (editing !== source) {
         workbook.setCell(activeId, focus.row, focus.col, editing);
@@ -792,6 +811,7 @@ const SheetWorkbookView = ({
   if (!activeId) {
     return <div className="kc-loading">{loadingText}</div>;
   }
+  const untrusted = workbook.untrustedPython();
   const range = selectionRange(selection);
   const rangeLabel =
     range.top === range.bottom && range.left === range.right
@@ -850,29 +870,81 @@ const SheetWorkbookView = ({
         <span className="kc-fx" aria-hidden>
           fx
         </span>
-        <input
-          ref={barRef}
-          className="kc-formula-input"
-          aria-label={t('Formula')}
-          readOnly={readOnly}
-          value={editing ?? source}
-          onFocus={() => {
-            if (editing === null && !readOnly) {
-              startEdit(source, 'edit', 'bar');
-            }
-          }}
-          onChange={(e) => onEditChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              commit({ row: focus.row + 1, col: focus.col });
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              cancel();
-            }
-          }}
-        />
+        {isPython(editing ?? source) ? (
+          <>
+            <textarea
+              ref={barRef as React.RefObject<HTMLTextAreaElement | null>}
+              className="kc-formula-input"
+              aria-label={t('Python code')}
+              readOnly={readOnly}
+              spellCheck={false}
+              rows={Math.min(12, (editing ?? source).split('\n').length)}
+              value={editing ?? source}
+              onFocus={() => {
+                if (editing === null && !readOnly) {
+                  startEdit(source, 'edit', 'bar');
+                }
+              }}
+              onChange={(e) => onEditChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  commit({ row: focus.row + 1, col: focus.col });
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancel();
+                } else if (e.key === 'Tab') {
+                  e.preventDefault();
+                  const el = e.currentTarget;
+                  const at = el.selectionStart;
+                  const value = el.value;
+                  onEditChange(
+                    value.slice(0, at) + '    ' + value.slice(el.selectionEnd),
+                  );
+                  requestAnimationFrame(() =>
+                    el.setSelectionRange(at + 4, at + 4),
+                  );
+                }
+              }}
+            />
+            <span className="kc-py-hint">{t('Ctrl+Enter to run')}</span>
+          </>
+        ) : (
+          <input
+            ref={barRef as React.RefObject<HTMLInputElement | null>}
+            className="kc-formula-input"
+            aria-label={t('Formula')}
+            readOnly={readOnly}
+            value={editing ?? source}
+            onFocus={() => {
+              if (editing === null && !readOnly) {
+                startEdit(source, 'edit', 'bar');
+              }
+            }}
+            onChange={(e) => onEditChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commit({ row: focus.row + 1, col: focus.col });
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancel();
+              }
+            }}
+          />
+        )}
       </div>
+      {editing === null && isPython(source) && (
+        <PythonInfo
+          error={workbook.pythonError(activeId, focus.row, focus.col)}
+          printed={workbook.pythonPrinted(activeId, focus.row, focus.col)}
+        />
+      )}
+      <PythonApproval
+        workbook={workbook}
+        cells={untrusted}
+        sheetName={(id) => sheets.find((s) => s.id === id)?.meta.name ?? id}
+      />
       {!workbook.calculated && (
         <div className="kc-loading-bar">{loadingText}</div>
       )}
@@ -914,24 +986,31 @@ const SheetWorkbookView = ({
             !readOnly && setMenu({ x, y, target })
           }
           overlay={(geometry) => (
-            <ChartLayer
-              workbook={workbook}
-              sheetId={activeId}
-              geometry={geometry}
-              rows={rows}
-              selectedId={chartId}
-              readOnly={readOnly}
-              onSelect={(id) => {
-                setChartId(id);
-                if (id === null) {
-                  focusGrid();
-                }
-              }}
-              onEdit={(id) => {
-                setSolverOpen(false);
-                setChartPanel(id);
-              }}
-            />
+            <>
+              <PythonFigures
+                workbook={workbook}
+                sheetId={activeId}
+                geometry={geometry}
+              />
+              <ChartLayer
+                workbook={workbook}
+                sheetId={activeId}
+                geometry={geometry}
+                rows={rows}
+                selectedId={chartId}
+                readOnly={readOnly}
+                onSelect={(id) => {
+                  setChartId(id);
+                  if (id === null) {
+                    focusGrid();
+                  }
+                }}
+                onEdit={(id) => {
+                  setSolverOpen(false);
+                  setChartPanel(id);
+                }}
+              />
+            </>
           )}
         />
         {solverOpen && (

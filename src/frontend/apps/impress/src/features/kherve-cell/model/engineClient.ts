@@ -8,8 +8,9 @@ export type TextChange = [string | null, number, number, string];
 
 type Operation =
   | 'render_chart'
-  | 'fit'
   | 'solve'
+  | 'set_trusted'
+  | 'python_outputs'
   | 'reset'
   | 'set_cells'
   | 'set_formats'

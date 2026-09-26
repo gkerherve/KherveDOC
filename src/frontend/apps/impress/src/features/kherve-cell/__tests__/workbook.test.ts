@@ -260,3 +260,33 @@ describe('SheetWorkbook', () => {
     });
   });
 });
+
+describe('python cells', () => {
+  it('trusts code typed here, asks for code from others', async () => {
+    localStorage.clear();
+    const engine = new FakeEngine();
+    const docA = new Y.Doc();
+    const a = new SheetWorkbook(docA, engine);
+    await a.start();
+    a.ensureFirstSheet();
+    const sheet = a.sheets()[0].id;
+    a.setCell(sheet, 0, 0, '=PY 1+1');
+    await a.settled();
+    expect(a.untrustedPython()).toEqual([]);
+    expect(engine.calls.some(([op]) => op === 'set_trusted')).toBe(true);
+
+    // Someone else's code arrives: it waits for approval.
+    docA.transact(() => {
+      a.yCells.set(`${sheet}|1,0`, '=PY 2+2');
+    }, 'remote');
+    await a.settled();
+    expect(a.untrustedPython()).toEqual([
+      { sheetId: sheet, row: 1, col: 0, source: '=PY 2+2' },
+    ]);
+    await a.trustPython(['=PY 2+2']);
+    expect(a.untrustedPython()).toEqual([]);
+    expect(
+      JSON.parse(localStorage.getItem('kherve-cell-trusted-python') ?? '[]'),
+    ).toHaveLength(2);
+  });
+});

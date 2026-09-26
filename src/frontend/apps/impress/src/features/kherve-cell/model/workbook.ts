@@ -41,6 +41,44 @@ import { Axis, StructureChange, adjustFormula, moveIndex } from './structure';
 /** Transactions made by this window (undoable by this user). */
 export const LOCAL_ORIGIN = 'kherve-cell-local';
 
+/** =PY sources this user lets run (their SHA-256), kept in the browser. */
+const TRUST_KEY = 'kherve-cell-trusted-python';
+
+export const isPython = (source: string) => /^\s*=PY(\s|$)/i.test(source);
+
+const sha256 = async (text: string) => {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(text),
+  );
+  return Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
+};
+
+const loadTrusted = () => {
+  try {
+    return new Set<string>(
+      JSON.parse(localStorage.getItem(TRUST_KEY) ?? '[]') as string[],
+    );
+  } catch {
+    return new Set<string>();
+  }
+};
+
+export interface PythonCell {
+  sheetId: string;
+  row: number;
+  col: number;
+  source: string;
+}
+
+interface PythonOutputs {
+  figures: [number, number, string][];
+  errors: [number, number, string][];
+  stdout: [number, number, string][];
+}
+
 export interface Engine {
   ready: Promise<void>;
   call<T>(op: string, payload: unknown, needs?: string[]): Promise<T>;
@@ -76,6 +114,12 @@ export class SheetWorkbook {
   private known = new Map<string, SheetMeta>(); // sheets the engine knows
   private numberFormats = new Map<string, string | null>();
   private fits = new Map<string, ChartFit[]>();
+  /** Python: trusted source hashes, sources typed here (trusted once
+   * hashed), the hash of each source seen, and what the cells produced. */
+  private trusted = loadTrusted();
+  private typedHere = new Set<string>();
+  private hashes = new Map<string, string>();
+  private pyOutputs: Record<string, PythonOutputs> = {};
   private listeners = new Set<Listener>();
   private pending = {
     sheets: new Set<string>(),
@@ -83,6 +127,8 @@ export class SheetWorkbook {
     formats: new Set<string>(),
   };
   private flushing: Promise<void> = Promise.resolve();
+  /** The first full calculation (charts and the Solver wait for it). */
+  private firstCalculation: Promise<void> = Promise.resolve();
   private scheduled = false;
   private started = false;
   private unobserve: (() => void)[] = [];
@@ -112,8 +158,18 @@ export class SheetWorkbook {
     this.started = true;
     const onSheets = (event: Y.YMapEvent<string>) =>
       this.queue('sheets', event.keysChanged as Set<string>);
-    const onCells = (event: Y.YMapEvent<string>) =>
+    const onCells = (event: Y.YMapEvent<string>) => {
+      if (event.transaction.origin === LOCAL_ORIGIN) {
+        // Python typed in this window runs without asking.
+        (event.keysChanged as Set<string>).forEach((key) => {
+          const source = this.yCells.get(key);
+          if (source && isPython(source)) {
+            this.typedHere.add(source);
+          }
+        });
+      }
       this.queue('cells', event.keysChanged as Set<string>);
+    };
     const onFormats = (event: Y.YMapEvent<string>) =>
       this.queue('formats', event.keysChanged as Set<string>);
     const onWidths = () => this.notify();
@@ -131,7 +187,8 @@ export class SheetWorkbook {
       () => this.yFormats.unobserve(onFormats),
       () => this.yWidths.unobserve(onWidths),
     ];
-    await this.recalculateAll();
+    this.firstCalculation = this.recalculateAll();
+    await this.firstCalculation;
   }
 
   /**
@@ -212,9 +269,11 @@ export class SheetWorkbook {
   /** Recompute the whole workbook from the shared document. */
   async recalculateAll() {
     await this.engine.ready;
+    await this.hashPython();
     const sheets = this.sheets();
     const names = this.engineNames();
     const payload = {
+      trusted: Array.from(this.trusted),
       sheets: sheets.map(({ id, meta }) => ({
         id,
         name: names.get(id) ?? meta.name,
@@ -252,6 +311,7 @@ export class SheetWorkbook {
       this.calculated = true;
       this.dataVersion += 1;
       this.error = undefined;
+      await this.refreshPythonOutputs();
     } catch (error) {
       this.error = String(error);
     }
@@ -298,6 +358,119 @@ export class SheetWorkbook {
       }
     });
     return widths;
+  }
+
+  // ── Python ───────────────────────────────────────────────────────
+  /** =PY cells that have not run because this user has not approved them. */
+  untrustedPython(): PythonCell[] {
+    const cells: PythonCell[] = [];
+    this.yCells.forEach((source, key) => {
+      if (!isPython(source)) {
+        return;
+      }
+      const hash = this.hashes.get(source);
+      if (hash && !this.trusted.has(hash)) {
+        cells.push({ ...parseCellKey(key), source });
+      }
+    });
+    return cells;
+  }
+
+  /** Let these =PY cells run (remembered in this browser). */
+  async trustPython(sources: string[]) {
+    for (const source of sources) {
+      const hash = this.hashes.get(source) ?? (await sha256(source));
+      this.hashes.set(source, hash);
+      this.trusted.add(hash);
+    }
+    this.saveTrusted();
+    await this.settled();
+    try {
+      const changes = await this.engine.call<TextChange[]>('set_trusted', {
+        trusted: Array.from(this.trusted),
+      });
+      this.applyChanges(changes);
+      await this.refreshPythonOutputs();
+    } catch (error) {
+      this.error = String(error);
+    }
+    this.notify();
+  }
+
+  /** The figure a =PY cell drew (SVG), its error and what it printed. */
+  pythonFigures(sheetId: string) {
+    return this.pyOutputs[sheetId]?.figures ?? [];
+  }
+
+  pythonError(sheetId: string, row: number, col: number) {
+    return this.pyOutputs[sheetId]?.errors.find(
+      ([r, c]) => r === row && c === col,
+    )?.[2];
+  }
+
+  pythonPrinted(sheetId: string, row: number, col: number) {
+    return this.pyOutputs[sheetId]?.stdout.find(
+      ([r, c]) => r === row && c === col,
+    )?.[2];
+  }
+
+  private saveTrusted() {
+    try {
+      localStorage.setItem(TRUST_KEY, JSON.stringify(Array.from(this.trusted)));
+    } catch {
+      /* private browsing: trusted for this visit only */
+    }
+  }
+
+  /** Hash every =PY source; those typed here become trusted. */
+  private async hashPython() {
+    let added = false;
+    const sources = new Set<string>();
+    this.yCells.forEach((source) => {
+      if (isPython(source)) {
+        sources.add(source);
+      }
+    });
+    for (const source of sources) {
+      if (!this.hashes.has(source)) {
+        this.hashes.set(source, await sha256(source));
+      }
+      if (this.typedHere.has(source)) {
+        const hash = this.hashes.get(source) as string;
+        if (!this.trusted.has(hash)) {
+          this.trusted.add(hash);
+          added = true;
+        }
+      }
+    }
+    this.typedHere.clear();
+    if (added) {
+      this.saveTrusted();
+    }
+    return added;
+  }
+
+  private hasPython() {
+    for (const source of this.yCells.values()) {
+      if (isPython(source)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async refreshPythonOutputs() {
+    if (!this.hasPython() && !Object.keys(this.pyOutputs).length) {
+      return;
+    }
+    try {
+      this.pyOutputs = await this.engine.call<Record<string, PythonOutputs>>(
+        'python_outputs',
+        {},
+      );
+    } catch (error) {
+      this.error = String(error);
+    }
   }
 
   /** The charts on a sheet. */
@@ -708,9 +881,16 @@ export class SheetWorkbook {
 
   getVersion = () => this.version;
 
-  /** Resolves once every queued change has been calculated. */
-  settled() {
-    return this.flushing;
+  /** Resolves once every queued change has been calculated (including
+   * changes made just before the call, whose flush is not started yet). */
+  async settled() {
+    await this.firstCalculation;
+    let current: Promise<void>;
+    do {
+      await Promise.resolve(); // let a just-queued flush start
+      current = this.flushing;
+      await current;
+    } while (current !== this.flushing);
   }
 
   // ── Internals ────────────────────────────────────────────────────
@@ -773,6 +953,13 @@ export class SheetWorkbook {
     const changes: TextChange[] = [];
     const names = this.engineNames();
     try {
+      if ((await this.hashPython()) && this.calculated) {
+        changes.push(
+          ...(await this.engine.call<TextChange[]>('set_trusted', {
+            trusted: Array.from(this.trusted),
+          })),
+        );
+      }
       for (const id of sheets) {
         const meta = parseJson<SheetMeta>(this.ySheets.get(id));
         const before = this.known.get(id);
@@ -837,6 +1024,14 @@ export class SheetWorkbook {
     } catch (error) {
       this.error = String(error);
     }
+    this.applyChanges(changes);
+    if (changes.length) {
+      await this.refreshPythonOutputs();
+    }
+    this.notify();
+  }
+
+  private applyChanges(changes: TextChange[]) {
     if (changes.length) {
       this.dataVersion += 1;
     }
@@ -855,6 +1050,5 @@ export class SheetWorkbook {
         map.delete(`${row},${col}`);
       }
     }
-    this.notify();
   }
 }
