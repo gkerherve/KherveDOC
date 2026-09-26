@@ -27,6 +27,8 @@ import {
   parseWidthKey,
   widthKey,
 } from './layout';
+import { shiftFormula } from './shift';
+import { Axis, StructureChange, adjustFormula, moveIndex } from './structure';
 
 /** Transactions made by this window (undoable by this user). */
 export const LOCAL_ORIGIN = 'kherve-cell-local';
@@ -388,6 +390,171 @@ export class SheetWorkbook {
           }
         }
       }
+    }, LOCAL_ORIGIN);
+  }
+
+  /** Put formats as they are (paste): null removes a cell's format. */
+  setFormats(sheetId: string, entries: [number, number, CellFormat | null][]) {
+    this.ydoc.transact(() => {
+      for (const [row, col, format] of entries) {
+        const key = cellKey(sheetId, row, col);
+        if (format && Object.keys(format).length) {
+          this.yFormats.set(key, JSON.stringify(format));
+        } else {
+          this.yFormats.delete(key);
+        }
+      }
+    }, LOCAL_ORIGIN);
+  }
+
+  /**
+   * Insert (count > 0) or delete (count < 0) rows or columns at *at*.
+   * Cells, formats and widths move; every formula in the workbook that
+   * points at this sheet is adjusted the way Excel does.
+   */
+  changeStructure(sheetId: string, axis: Axis, at: number, count: number) {
+    const meta = parseJson<SheetMeta>(this.ySheets.get(sheetId));
+    if (!meta || count === 0) {
+      return;
+    }
+    const change: StructureChange = { sheet: meta.name, axis, at, count };
+    const names = new Map(this.sheets().map((s) => [s.id, s.meta.name]));
+    const prefix = `${sheetId}|`;
+
+    this.ydoc.transact(() => {
+      // Cells and formats of the sheet move (or go).
+      for (const map of [this.yCells, this.yFormats]) {
+        const moved: [string, string][] = [];
+        for (const [key, value] of Array.from(map.entries())) {
+          if (!key.startsWith(prefix)) {
+            continue;
+          }
+          const { row, col } = parseCellKey(key);
+          const index = axis === 'row' ? row : col;
+          const target = moveIndex(index, at, count);
+          if (target === index) {
+            continue;
+          }
+          map.delete(key);
+          if (target !== null) {
+            moved.push([
+              axis === 'row'
+                ? cellKey(sheetId, target, col)
+                : cellKey(sheetId, row, target),
+              value,
+            ]);
+          }
+        }
+        moved.forEach(([key, value]) => map.set(key, value));
+      }
+      // Formulas anywhere that point at the sheet follow.
+      for (const [key, source] of Array.from(this.yCells.entries())) {
+        if (!source.startsWith('=')) {
+          continue;
+        }
+        const { sheetId: at2 } = parseCellKey(key);
+        const adjusted = adjustFormula(source, names.get(at2) ?? '', change);
+        if (adjusted !== source) {
+          this.yCells.set(key, adjusted);
+        }
+      }
+      if (axis === 'col') {
+        const widths: [number, number][] = [];
+        for (const [key, width] of Array.from(this.yWidths.entries())) {
+          if (!key.startsWith(prefix)) {
+            continue;
+          }
+          const { col } = parseWidthKey(key);
+          const target = moveIndex(col, at, count);
+          if (target !== col) {
+            this.yWidths.delete(key);
+            if (target !== null) {
+              widths.push([target, width]);
+            }
+          }
+        }
+        widths.forEach(([col, width]) =>
+          this.yWidths.set(widthKey(sheetId, col), width),
+        );
+      }
+      const size = axis === 'row' ? 'rows' : 'cols';
+      this.ySheets.set(
+        sheetId,
+        JSON.stringify({ ...meta, [size]: Math.max(1, meta[size] + count) }),
+      );
+    }, LOCAL_ORIGIN);
+  }
+
+  /**
+   * Sort the rows of a range by one of its columns. Values, formulas
+   * (their relative references follow the row) and formats move together.
+   */
+  sortRange(
+    sheetId: string,
+    range: { top: number; bottom: number; left: number; right: number },
+    byCol: number,
+    descending = false,
+  ) {
+    const rows: { row: number; key: string | number | null }[] = [];
+    for (let row = range.top; row <= range.bottom; row++) {
+      const text = this.text(sheetId, row, byCol);
+      const number = Number(text.replace(/,/g, ''));
+      rows.push({
+        row,
+        key:
+          text === ''
+            ? null
+            : Number.isNaN(number)
+              ? text.toLowerCase()
+              : number,
+      });
+    }
+    const compare = (
+      a: { key: string | number | null },
+      b: { key: string | number | null },
+    ) => {
+      // Empty cells last; numbers before text, as in Excel.
+      if (a.key === null || b.key === null) {
+        return a.key === b.key ? 0 : a.key === null ? 1 : -1;
+      }
+      if (typeof a.key !== typeof b.key) {
+        return typeof a.key === 'number' ? -1 : 1;
+      }
+      const order = a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+      return descending ? -order : order;
+    };
+    const sorted = [...rows].sort(compare);
+    const edits: [string, number, number, string][] = [];
+    const formats: [number, number, CellFormat | null][] = [];
+    sorted.forEach(({ row: from }, i) => {
+      const to = range.top + i;
+      for (let col = range.left; col <= range.right; col++) {
+        edits.push([
+          sheetId,
+          to,
+          col,
+          shiftFormula(this.source(sheetId, from, col), to - from, 0),
+        ]);
+        formats.push([to, col, this.format(sheetId, from, col) ?? null]);
+      }
+    });
+    this.ydoc.transact(() => {
+      this.setCells(edits);
+      this.setFormats(sheetId, formats);
+    }, LOCAL_ORIGIN);
+  }
+
+  /** Keep the first *rows* rows and *cols* columns in view (0: none). */
+  setFreeze(sheetId: string, rows: number, cols: number) {
+    const meta = parseJson<SheetMeta>(this.ySheets.get(sheetId));
+    if (!meta) {
+      return;
+    }
+    this.ydoc.transact(() => {
+      this.ySheets.set(
+        sheetId,
+        JSON.stringify({ ...meta, freezeRows: rows, freezeCols: cols }),
+      );
     }, LOCAL_ORIGIN);
   }
 

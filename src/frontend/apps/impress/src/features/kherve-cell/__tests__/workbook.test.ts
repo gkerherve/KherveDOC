@@ -173,4 +173,90 @@ describe('SheetWorkbook', () => {
     book.undo();
     expect(book.source(sheet, 6000, 60)).toBe('');
   });
+
+  it('inserts and deletes rows, moving cells and adjusting formulas', async () => {
+    const book = new SheetWorkbook(new Y.Doc(), new FakeEngine());
+    await book.start();
+    book.ensureFirstSheet();
+    const data = book.sheets()[0].id;
+    const results = book.addSheet();
+    book.setCells([
+      [data, 0, 0, '1'],
+      [data, 1, 0, '2'],
+      [data, 2, 0, '=SUM(A1:A2)'],
+      [results, 0, 0, '=Sheet1!A3*10'],
+    ]);
+    book.setFormat(data, [[1, 0]], { bold: true });
+
+    book.changeStructure(data, 'row', 1, 1); // insert above row 2
+    expect(book.source(data, 1, 0)).toBe('');
+    expect(book.source(data, 2, 0)).toBe('2');
+    expect(book.format(data, 2, 0)).toEqual({ bold: true });
+    expect(book.source(data, 3, 0)).toBe('=SUM(A1:A3)');
+    expect(book.source(results, 0, 0)).toBe('=Sheet1!A4*10');
+    expect(book.sheets()[0].meta.rows).toBe(5001);
+
+    book.changeStructure(data, 'row', 0, -1); // delete row 1
+    expect(book.source(data, 2, 0)).toBe('=SUM(A1:A2)');
+    expect(book.source(results, 0, 0)).toBe('=Sheet1!A3*10');
+  });
+
+  it('inserts columns and keeps widths with their column', async () => {
+    const book = new SheetWorkbook(new Y.Doc(), new FakeEngine());
+    await book.start();
+    book.ensureFirstSheet();
+    const sheet = book.sheets()[0].id;
+    book.setCells([
+      [sheet, 0, 1, 'b'],
+      [sheet, 0, 2, '=B1'],
+    ]);
+    book.setWidth(sheet, 1, 150);
+    book.changeStructure(sheet, 'col', 0, 2);
+    expect(book.source(sheet, 0, 3)).toBe('b');
+    expect(book.source(sheet, 0, 4)).toBe('=D1');
+    expect(book.width(sheet, 3)).toBe(150);
+    expect(book.width(sheet, 1)).toBe(100);
+  });
+
+  it('sorts rows by a column, formulas following their row', async () => {
+    const engine = new FakeEngine();
+    const book = new SheetWorkbook(new Y.Doc(), engine);
+    await book.start();
+    book.ensureFirstSheet();
+    const sheet = book.sheets()[0].id;
+    book.setCells([
+      [sheet, 0, 0, 'pear'],
+      [sheet, 0, 1, '=A1'],
+      [sheet, 1, 0, 'apple'],
+      [sheet, 1, 1, '=A2'],
+      [sheet, 2, 0, 'fig'],
+      [sheet, 2, 1, '=A3'],
+    ]);
+    await new Promise((r) => setTimeout(r, 0));
+    await book.settled();
+    book.sortRange(sheet, { top: 0, bottom: 2, left: 0, right: 1 }, 0);
+    expect([0, 1, 2].map((r) => book.source(sheet, r, 0))).toEqual([
+      'apple',
+      'fig',
+      'pear',
+    ]);
+    // Each formula still reads the cell on its own row.
+    expect([0, 1, 2].map((r) => book.source(sheet, r, 1))).toEqual([
+      '=A1',
+      '=A2',
+      '=A3',
+    ]);
+  });
+
+  it('remembers frozen rows and columns', async () => {
+    const book = new SheetWorkbook(new Y.Doc(), new FakeEngine());
+    await book.start();
+    book.ensureFirstSheet();
+    const sheet = book.sheets()[0].id;
+    book.setFreeze(sheet, 1, 2);
+    expect(book.sheets()[0].meta).toMatchObject({
+      freezeRows: 1,
+      freezeCols: 2,
+    });
+  });
 });

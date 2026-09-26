@@ -214,6 +214,11 @@ export const tabsCss = `
     opacity: 0;
     cursor: pointer;
   }
+  .kc-text-button {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
   .kc-number-format {
     height: 28px;
     border: 1px solid #d6d9e0;

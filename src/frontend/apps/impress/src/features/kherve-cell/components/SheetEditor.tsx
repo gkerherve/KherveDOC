@@ -18,12 +18,16 @@ import { useTranslation } from 'react-i18next';
 import { useStyleElement } from '@/docs/doc-editor/page-setup/useStyleElement';
 
 import { useCellPresence, useSheetWorkbook } from '../hooks';
+import { fillEdits } from '../model/fill';
 import { CellFormat, address, parseAddress } from '../model/layout';
 import { fromTsv, shiftFormula, toTsv } from '../model/shift';
 import type { SheetWorkbook } from '../model/workbook';
 
+import { MenuItem, SheetContextMenu, menuCss } from './SheetContextMenu';
 import {
   CellPos,
+  ContextTarget,
+  Range,
   Selection,
   SheetGrid,
   gridCss,
@@ -48,6 +52,7 @@ interface Clip {
   top: number;
   left: number;
   sources: string[][];
+  formats: (CellFormat | null)[][];
 }
 
 const START: Selection = {
@@ -67,7 +72,7 @@ export const SheetEditor = ({
 }: SheetEditorProps) => {
   const { t } = useTranslation();
   const { workbook, version } = useSheetWorkbook(provider, !readOnly, synced);
-  useStyleElement(gridCss + tabsCss + editorCss);
+  useStyleElement(gridCss + tabsCss + menuCss + editorCss);
 
   if (!workbook) {
     return null;
@@ -341,8 +346,8 @@ const SheetWorkbookView = ({
       } else if (lower === 'a') {
         event.preventDefault();
         select({
-          anchor: { row: 0, col: 0 },
-          focus: { row: rows - 1, col: cols - 1 },
+          anchor: { row: rows - 1, col: cols - 1 },
+          focus: { row: 0, col: 0 },
         });
       } else if (['b', 'i', 'u'].includes(lower) && !readOnly) {
         event.preventDefault();
@@ -432,12 +437,17 @@ const SheetWorkbookView = ({
     const r = selectionRange(selection);
     const texts: string[][] = [];
     const sources: string[][] = [];
+    const formats: (CellFormat | null)[][] = [];
     for (let row = r.top; row <= r.bottom; row++) {
       texts.push([]);
       sources.push([]);
+      formats.push([]);
       for (let col = r.left; col <= r.right; col++) {
         texts[texts.length - 1].push(workbook.text(activeId, row, col));
         sources[sources.length - 1].push(workbook.source(activeId, row, col));
+        formats[formats.length - 1].push(
+          workbook.format(activeId, row, col) ?? null,
+        );
       }
     }
     const tsv = toTsv(texts);
@@ -448,6 +458,7 @@ const SheetWorkbookView = ({
       top: r.top,
       left: r.left,
       sources,
+      formats,
     };
     if (cut && !readOnly) {
       workbook.setCells(
@@ -481,6 +492,22 @@ const SheetWorkbookView = ({
       }),
     );
     workbook.setCells(edits);
+    if (ours) {
+      // Copied here: the formats come along, as in Excel.
+      workbook.setFormats(
+        activeId,
+        ours.formats.flatMap((line, i) =>
+          line.map(
+            (fmt, j) =>
+              [r.top + i, r.left + j, fmt] as [
+                number,
+                number,
+                CellFormat | null,
+              ],
+          ),
+        ),
+      );
+    }
     select({
       anchor: { row: r.top, col: r.left },
       focus: {
@@ -488,6 +515,206 @@ const SheetWorkbookView = ({
         col: r.left + Math.max(...block.map((l) => l.length)) - 1,
       },
     });
+  };
+
+  // ── Rows, columns, fill, sort, freeze ────────────────────────────
+  const freezeRows = sheet?.meta.freezeRows ?? 0;
+  const freezeCols = sheet?.meta.freezeCols ?? 0;
+
+  const insertRows = (before: boolean) => {
+    const r = selectionRange(selection);
+    const count = r.bottom - r.top + 1;
+    if (activeId) {
+      workbook.changeStructure(
+        activeId,
+        'row',
+        before ? r.top : r.bottom + 1,
+        count,
+      );
+    }
+  };
+  const insertCols = (before: boolean) => {
+    const r = selectionRange(selection);
+    const count = r.right - r.left + 1;
+    if (activeId) {
+      workbook.changeStructure(
+        activeId,
+        'col',
+        before ? r.left : r.right + 1,
+        count,
+      );
+    }
+  };
+  const deleteRows = () => {
+    const r = selectionRange(selection);
+    if (activeId) {
+      workbook.changeStructure(activeId, 'row', r.top, -(r.bottom - r.top + 1));
+      moveTo({ row: r.top, col: focus.col });
+    }
+  };
+  const deleteCols = () => {
+    const r = selectionRange(selection);
+    if (activeId) {
+      workbook.changeStructure(
+        activeId,
+        'col',
+        r.left,
+        -(r.right - r.left + 1),
+      );
+      moveTo({ row: focus.row, col: r.left });
+    }
+  };
+
+  /** Sort the selection, or the whole column's data if one cell is chosen. */
+  const sort = (descending: boolean) => {
+    if (!activeId) {
+      return;
+    }
+    let r = selectionRange(selection);
+    if (r.top === r.bottom) {
+      // One row selected: sort the block of filled rows around it.
+      let top = r.top;
+      let bottom = r.top;
+      while (top > 0 && workbook.text(activeId, top - 1, focus.col) !== '') {
+        top -= 1;
+      }
+      while (
+        bottom < rows - 1 &&
+        workbook.text(activeId, bottom + 1, focus.col) !== ''
+      ) {
+        bottom += 1;
+      }
+      let left = focus.col;
+      let right = focus.col;
+      while (left > 0 && workbook.text(activeId, top, left - 1) !== '') {
+        left -= 1;
+      }
+      while (
+        right < cols - 1 &&
+        workbook.text(activeId, top, right + 1) !== ''
+      ) {
+        right += 1;
+      }
+      r = { top, bottom, left, right };
+    }
+    if (r.bottom - r.top >= 1) {
+      workbook.sortRange(activeId, r, focus.col, descending);
+    }
+  };
+
+  const toggleFreeze = () => {
+    if (!activeId) {
+      return;
+    }
+    if (freezeRows || freezeCols) {
+      workbook.setFreeze(activeId, 0, 0);
+    } else {
+      // Freeze the rows above and the columns left of the active cell.
+      workbook.setFreeze(activeId, focus.row, focus.col);
+    }
+  };
+
+  const fill = (source: Range, target: Range) => {
+    if (!activeId || readOnly) {
+      return;
+    }
+    const edits = fillEdits(
+      (row, col) => workbook.source(activeId, row, col),
+      source,
+      target,
+    );
+    workbook.setCells(edits.map((e) => [activeId, e.row, e.col, e.value]));
+    workbook.setFormats(
+      activeId,
+      edits.map((e) => [
+        e.row,
+        e.col,
+        workbook.format(activeId, e.from[0], e.from[1]) ?? null,
+      ]),
+    );
+    select({
+      anchor: { row: target.top, col: target.left },
+      focus: { row: target.bottom, col: target.right },
+    });
+  };
+
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    target: ContextTarget;
+  } | null>(null);
+
+  const menuItems = (target: ContextTarget): MenuItem[] => {
+    const r = selectionRange(selection);
+    const nRows = r.bottom - r.top + 1;
+    const nCols = r.right - r.left + 1;
+    const rowItems: MenuItem[] = [
+      {
+        label: t('Insert {{count}} row(s) above', { count: nRows }),
+        onClick: () => insertRows(true),
+      },
+      {
+        label: t('Insert {{count}} row(s) below', { count: nRows }),
+        onClick: () => insertRows(false),
+      },
+      {
+        label: t('Delete {{count}} row(s)', { count: nRows }),
+        onClick: deleteRows,
+        separatorAfter: true,
+      },
+    ];
+    const colItems: MenuItem[] = [
+      {
+        label: t('Insert {{count}} column(s) left', { count: nCols }),
+        onClick: () => insertCols(true),
+      },
+      {
+        label: t('Insert {{count}} column(s) right', { count: nCols }),
+        onClick: () => insertCols(false),
+      },
+      {
+        label: t('Delete {{count}} column(s)', { count: nCols }),
+        onClick: deleteCols,
+        separatorAfter: true,
+      },
+    ];
+    const common: MenuItem[] = [
+      { label: t('Sort A → Z'), onClick: () => sort(false) },
+      {
+        label: t('Sort Z → A'),
+        onClick: () => sort(true),
+        separatorAfter: true,
+      },
+      {
+        label:
+          freezeRows || freezeCols
+            ? t('Unfreeze panes')
+            : t('Freeze panes here'),
+        onClick: toggleFreeze,
+      },
+      {
+        label: t('Clear contents'),
+        onClick: () =>
+          activeId &&
+          workbook.setCells(
+            selectedCells().map(
+              ([row, col]) =>
+                [activeId, row, col, ''] as [string, number, number, string],
+            ),
+          ),
+      },
+      {
+        label: t('Clear formatting'),
+        onClick: () => setFormat(null),
+      },
+    ];
+    if (target === 'row') {
+      return [...rowItems, ...common];
+    }
+    if (target === 'col') {
+      return [...colItems, ...common];
+    }
+    return [...rowItems, ...colItems, ...common];
   };
 
   // ── Rendering ────────────────────────────────────────────────────
@@ -511,6 +738,9 @@ const SheetWorkbookView = ({
           onRedo={() => workbook.redo()}
           onToggle={toggleFormat}
           onFormat={setFormat}
+          frozen={Boolean(freezeRows || freezeCols)}
+          onSort={sort}
+          onFreeze={toggleFreeze}
         />
       )}
       <div className="kc-formula-bar">
@@ -599,8 +829,25 @@ const SheetWorkbookView = ({
           onGridKeyDown={onGridKeyDown}
           onTypedText={onTypedText}
           onPickReference={pickReference}
+          freezeRows={freezeRows}
+          freezeCols={freezeCols}
+          onFill={fill}
+          onContextMenu={(x, y, target) =>
+            !readOnly && setMenu({ x, y, target })
+          }
         />
       </div>
+      {menu && (
+        <SheetContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menuItems(menu.target)}
+          onClose={() => {
+            setMenu(null);
+            focusGrid();
+          }}
+        />
+      )}
       <SheetTabs
         sheets={sheets}
         activeId={activeId}

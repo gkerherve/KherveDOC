@@ -44,6 +44,9 @@ interface SheetToolbarProps {
   onRedo: () => void;
   onToggle: (flag: 'bold' | 'italic' | 'underline') => void;
   onFormat: (patch: Partial<CellFormat> | null) => void;
+  frozen: boolean;
+  onSort: (descending: boolean) => void;
+  onFreeze: () => void;
 }
 
 const ColorButton = ({
@@ -82,6 +85,9 @@ export const SheetToolbar = ({
   onRedo,
   onToggle,
   onFormat,
+  frozen,
+  onSort,
+  onFreeze,
 }: SheetToolbarProps) => {
   const { t } = useTranslation();
   const [target, setTarget] = useState<HTMLElement | null>(null);
@@ -184,6 +190,23 @@ export const SheetToolbar = ({
           icon="format_clear"
           label={t('Clear formatting')}
           onClick={() => onFormat(null)}
+        />
+        <Separator />
+        <ToolbarButton label={t('Sort A → Z')} onClick={() => onSort(false)}>
+          <span className="kc-text-button">A→Z</span>
+        </ToolbarButton>
+        <ToolbarButton label={t('Sort Z → A')} onClick={() => onSort(true)}>
+          <span className="kc-text-button">Z→A</span>
+        </ToolbarButton>
+        <ToolbarButton
+          icon="ac_unit"
+          label={
+            frozen
+              ? t('Unfreeze panes')
+              : t('Freeze panes (rows above and columns left of the cell)')
+          }
+          pressed={frozen}
+          onClick={onFreeze}
         />
       </Box>
     </Box>

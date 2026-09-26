@@ -23,6 +23,9 @@ export interface SheetMeta {
   order: number;
   rows: number;
   cols: number;
+  /** Rows / columns kept in view while scrolling (freeze panes). */
+  freezeRows?: number;
+  freezeCols?: number;
 }
 
 /** KherveSheet's CellFormat.to_dict() keys (the ones the web edits). */
