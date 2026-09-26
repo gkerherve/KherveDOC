@@ -4,3 +4,6 @@ dist/
 installer/
 __pycache__/
 web/
+pyodide/
+_version.py
+installer/

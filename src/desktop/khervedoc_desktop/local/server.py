@@ -39,7 +39,7 @@ DEFAULT_PORT = 38471
 #: Where Pyodide (the spreadsheets' Python) comes from the first time; the
 #: app keeps a copy, so spreadsheets then work offline.
 PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/"
-PYODIDE_FILE = re.compile(r"^[\w.+-]+$")
+PYODIDE_FILE = re.compile(r"^(pypi/)?[\w.+-]+$")
 mimetypes.add_type("application/wasm", ".wasm")
 mimetypes.add_type("text/javascript", ".mjs")
 
@@ -64,14 +64,14 @@ def doc_json(meta: dict) -> dict:
         "accesses_manage", "accesses_view", "ai_proxy", "ai_transform",
         "ai_translate", "children_create", "children_list",
         "collaboration_auth", "comment", "cors_proxy", "descendants",
-        "destroy", "duplicate", "favorite", "invite_owner", "leave",
+        "duplicate", "favorite", "invite_owner", "leave",
         "link_configuration", "move", "restore", "search", "tree",
         "versions_destroy", "versions_list", "versions_retrieve",
         "media_check")}
     abilities.update({name: True for name in (
         "retrieve", "update", "partial_update", "content_retrieve",
         "content_patch", "formatted_content", "attachment_upload",
-        "media_auth", "can_edit")})
+        "media_auth", "can_edit", "destroy")})
     abilities["link_select_options"] = {"restricted": None,
                                         "authenticated": [], "public": []}
     return {
@@ -132,6 +132,8 @@ class LocalServer:
     def start(self) -> str:
         """Start serving; returns the origin. The usual port is kept when
         free, so the web app's browser storage stays the same."""
+        from khervedoc_desktop.certs import ensure_ca_bundle
+        ensure_ca_bundle()
         if not self.port or not self._port_free(self.port):
             with socket.socket() as probe:
                 probe.bind(("127.0.0.1", 0))
@@ -207,6 +209,7 @@ class LocalServer:
         r.add_get(API + "documents/search/", self.search_docs)
         r.add_get(API + "documents/{id}/", self.get_doc)
         r.add_patch(API + "documents/{id}/", self.update_doc)
+        r.add_delete(API + "documents/{id}/", self.delete_doc)
         r.add_get(API + "documents/{id}/content/", self.get_content)
         r.add_patch(API + "documents/{id}/content/", self.put_content)
         r.add_get(API + "documents/{id}/can-edit/", self.can_edit)
@@ -218,7 +221,7 @@ class LocalServer:
         r.add_get(API + "documents/{id}/invitations/", self.empty_page)
         r.add_get(API + "documents/{id}/versions/", self.empty_page)
         r.add_get("/media/{id}/{key}", self.media)
-        r.add_get("/kherve-cell/pyodide/{name}", self.pyodide)
+        r.add_get("/kherve-cell/pyodide/{name:.+}", self.pyodide)
         r.add_route("*", API + "{tail:.*}", self.not_here)
         r.add_get("/{tail:.*}", self.static)
         return app
@@ -356,6 +359,22 @@ class LocalServer:
                 self.rooms.relocate(doc_id)
         return web.json_response(doc_json(meta))
 
+    async def delete_doc(self, request: web.Request) -> web.Response:
+        """Move the document's file to the Trash (restorable from there)."""
+        doc_id = request.match_info["id"]
+        self._meta(doc_id)
+        room = self.rooms.get(doc_id)
+        if room is not None:
+            room.flush()
+            for client in list(room.clients):
+                room.leave(client)
+        path = self.library.get(doc_id).path
+        self.rooms.forget(doc_id)
+        self.library.forget(doc_id)
+        if not _move_to_trash(path):
+            raise web.HTTPInternalServerError(text="Could not move to Trash")
+        return web.Response(status=204)
+
     async def get_content(self, request: web.Request) -> web.Response:
         doc_id = request.match_info["id"]
         self._meta(doc_id)
@@ -418,11 +437,13 @@ class LocalServer:
     # ── Pyodide (spreadsheets), kept on this computer ────────────────
     async def pyodide(self, request: web.Request) -> web.StreamResponse:
         name = request.match_info["name"]
-        if not PYODIDE_FILE.match(name):
+        if not PYODIDE_FILE.match(name) or ".." in name:
             raise web.HTTPNotFound()
         for folder in (self.bundled_pyodide, self.pyodide_dir):
             if folder is not None and (Path(folder) / name).is_file():
                 return web.FileResponse(Path(folder) / name)
+        if name.startswith("pypi"):
+            raise web.HTTPNotFound()   # only what the app ships
         lock = self._fetching.setdefault(name, asyncio.Lock())
         async with lock:
             target = self.pyodide_dir / name
@@ -437,8 +458,15 @@ class LocalServer:
     @staticmethod
     async def _download(url: str, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
+        import ssl
+
+        from aiohttp import TCPConnector
         timeout = ClientTimeout(total=600)
-        async with ClientSession(timeout=timeout) as session:
+        # Built now (aiohttp's own is made at import, before certs.py
+        # may have pointed Python at a CA bundle).
+        connector = TCPConnector(ssl=ssl.create_default_context())
+        async with ClientSession(timeout=timeout,
+                                 connector=connector) as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     raise OSError(f"{url}: HTTP {response.status}")
@@ -482,6 +510,24 @@ class LocalServer:
             room.leave(client)
             room.flush()
         return sock
+
+
+def _move_to_trash(path: Path) -> bool:
+    """The system Trash (Finder, Recycle Bin); a "Deleted" folder beside
+    the file if there is none."""
+    try:
+        from PySide6.QtCore import QFile
+        if QFile.moveToTrash(str(path)):
+            return True
+    except Exception:  # no Qt (tests) or no Trash on this volume
+        pass
+    deleted = path.parent / "Deleted"
+    deleted.mkdir(exist_ok=True)
+    try:
+        os.replace(path, deleted / path.name)
+        return True
+    except OSError:
+        return False
 
 
 def new_uuid() -> str:

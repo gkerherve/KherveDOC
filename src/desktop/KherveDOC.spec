@@ -31,8 +31,11 @@ a = Analysis(
         (str(PKG / "icon.png"), "khervedoc_desktop"),
         (str(PKG / "local" / "config_template.json"), "khervedoc_desktop/local"),
         (str(WEB), "web"),
+        # Spreadsheets offline from the first launch (bin/fetch-desktop-pyodide.py).
+        *([(str(ROOT / "pyodide"), "pyodide")]
+          if (ROOT / "pyodide" / "pyodide.js").is_file() else []),
     ],
-    hiddenimports=["pycrdt", "aiohttp"],
+    hiddenimports=["pycrdt", "aiohttp", "certifi"],
     excludes=["PyQt5", "PyQt6", "tkinter", "test", "pip", "setuptools"],
 )
 

@@ -85,6 +85,25 @@ let bridge = null;
 let pyodideRef = null;
 const loaded = new Set();
 
+let shippedCache = null;
+/** {package: [wheel paths]} of the PyPI packages the desktop app ships. */
+async function shippedWheels() {
+  if (shippedCache === null) {
+    shippedCache = {};
+    if (PYODIDE === PYODIDE_LOCAL) {
+      try {
+        const response = await fetch(PYODIDE_LOCAL + "pypi.json");
+        if (response.ok) {
+          shippedCache = await response.json();
+        }
+      } catch (_error) {
+        /* none shipped */
+      }
+    }
+  }
+  return shippedCache;
+}
+
 /** Load Pyodide packages (e.g. matplotlib) the first time they are needed. */
 async function ensurePackages(names) {
   const missing = names.filter((n) => !loaded.has(n));
@@ -99,7 +118,18 @@ async function ensurePackages(names) {
   if (pypi.length) {
     await pyodideRef.loadPackage("micropip");
     const micropip = pyodideRef.pyimport("micropip");
-    await micropip.install(pypi.map((n) => n.slice(5)));
+    // The desktop app ships these packages; the website gets them from PyPI.
+    const shipped = await shippedWheels();
+    for (const name of pypi.map((n) => n.slice(5))) {
+      const wheels = shipped[name];
+      if (wheels) {
+        await pyodideRef.loadPackage(["numpy", "scipy"]);
+        await micropip.install.callKwargs(
+          wheels.map((w) => PYODIDE + w), { deps: false });
+      } else {
+        await micropip.install(name);
+      }
+    }
   }
   missing.forEach((n) => loaded.add(n));
 }

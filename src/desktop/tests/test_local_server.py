@@ -240,3 +240,47 @@ def test_quitting_with_an_editor_connected_is_quick(tmp_path):
     srv.stop()
     assert time.monotonic() - start < 4
     loop.run_until_complete(session.close())
+
+
+def test_shipped_pyodide_and_wheels_come_first(tmp_path):
+    static = tmp_path / "web"
+    static.mkdir()
+    (static / "index.html").write_text("home")
+    shipped = tmp_path / "pyodide"
+    (shipped / "pypi").mkdir(parents=True)
+    (shipped / "pyodide.js").write_text("// shipped")
+    (shipped / "pypi.json").write_text('{"openpyxl": ["pypi/o.whl"]}')
+    (shipped / "pypi" / "o.whl").write_bytes(b"wheel")
+    library = Library(tmp_path / "data", tmp_path / "Documents")
+    srv = LocalServer(library, static, "1", port=0, bundled_pyodide=shipped)
+    srv.start()
+
+    async def go():
+        base = srv.origin + "/kherve-cell/pyodide/"
+        async with ClientSession() as s:
+            assert await (await s.get(base + "pyodide.js")).text() == "// shipped"
+            assert (await (await s.get(base + "pypi.json")).json())["openpyxl"]
+            assert await (await s.get(base + "pypi/o.whl")).read() == b"wheel"
+            assert (await s.get(base + "pypi/missing.whl")).status == 404
+            assert (await s.get(base + "pypi/..%2F..%2Fsecret")).status == 404
+
+    try:
+        run(go())
+    finally:
+        srv.stop()
+
+
+def test_deleting_moves_the_file_away(server):
+    doc_id = server.library.create("Old notes")
+    path = server.library.get(doc_id).path
+
+    async def go():
+        async with ClientSession() as s:
+            r = await s.delete(server.origin + f"/api/v1.0/documents/{doc_id}/")
+            assert r.status == 204
+            r = await s.get(server.origin + f"/api/v1.0/documents/{doc_id}/")
+            assert r.status == 404
+
+    run(go())
+    assert not path.exists()
+    assert server.library.get(doc_id) is None

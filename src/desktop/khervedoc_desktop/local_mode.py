@@ -31,6 +31,12 @@ def web_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "web"
 
 
+def pyodide_dir() -> Path | None:
+    """The Pyodide files shipped with the app (spreadsheets offline)."""
+    folder = web_dir().parent / "pyodide"
+    return folder if (folder / "pyodide.js").is_file() else None
+
+
 def web_version(folder: Path) -> str:
     """The web app's version, which the settings it is given must repeat
     (it reloads itself otherwise)."""
@@ -64,7 +70,8 @@ def start() -> LocalServer:
     if _server is None:
         folder = web_dir()
         _library = Library(data_dir(), documents_dir())
-        _server = LocalServer(_library, folder, web_version(folder))
+        _server = LocalServer(_library, folder, web_version(folder),
+                              bundled_pyodide=pyodide_dir())
         _server.start()
     return _server
 

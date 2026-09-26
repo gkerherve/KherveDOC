@@ -186,6 +186,11 @@ class Rooms:
             room.flush()
             room.file = file
 
+    def forget(self, doc_id: str) -> None:
+        room = self._rooms.pop(doc_id, None)
+        if room is not None:
+            room.flush()
+
     def flush_doc(self, doc_id: str) -> None:
         room = self._rooms.get(doc_id)
         if room is not None:

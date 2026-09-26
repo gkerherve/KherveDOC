@@ -526,6 +526,8 @@ class MainWindow(QMainWindow):
 
         help_menu = bar.addMenu("&Help")
         self._action(help_menu, "About KherveDOC", self._about, role=Role.AboutRole)
+        self._action(help_menu, "Check for Updates…", check_for_updates,
+                     role=Role.ApplicationSpecificRole)
 
         # The open document's File, Edit, View, Insert, Format, Tools and
         # Help items join these menus (see native_menus.py).
@@ -746,6 +748,22 @@ def _schedule_capture(window: MainWindow, path: str, delay_ms: int):
     window.page.loadFinished.connect(lambda _ok: QTimer.singleShot(delay_ms, capture))
 
 
+_updater = None
+
+
+def update_manager(window=None):
+    """The app's updater (KherveDOC releases on GitHub), built on demand."""
+    global _updater
+    if _updater is None:
+        from khervedoc_desktop.updater import UpdateManager
+        _updater = UpdateManager(window or (_windows[0] if _windows else None))
+    return _updater
+
+
+def check_for_updates():
+    update_manager(QApplication.activeWindow()).check_now()
+
+
 def open_path(path: str, parent=None) -> "MainWindow | None":
     """Open a .kdoc file in a window (the one already showing it, if any)."""
     library = local_mode.library()
@@ -793,10 +811,18 @@ def main() -> int:
     QApplication.setApplicationName(APP_NAME)
     QApplication.setOrganizationName("Kherve")
     QApplication.setApplicationVersion(__version__)
+    from khervedoc_desktop.certs import ensure_ca_bundle
+    ensure_ca_bundle()
     app = Application(sys.argv)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
 
+    from khervedoc_desktop.splash import Splash
+    splash = Splash()
+    splash.show()
+    splash.step("Starting")
+
     if local_mode.available():
+        splash.step("Opening your documents")
         try:
             local_mode.start()
         except Exception as exc:  # the app still works with a server
@@ -814,6 +840,23 @@ def main() -> int:
         window = open_path(path) or window
     if window is None:
         window = open_window()
+
+    # The splash goes once the first page has loaded (or after a while).
+    splash.step("Loading the editor")
+
+    def ready(*_):
+        if splash.isVisible():
+            splash.step("Ready")
+            splash.finish(window)
+
+    window.page.loadFinished.connect(ready)
+    QTimer.singleShot(20000, ready)
+
+    # A quiet check for a newer version (installed app only, daily at most).
+    try:
+        update_manager(window).start_background_check()
+    except Exception:  # an updater that cannot start never blocks the app
+        pass
 
     if capture_path := os.environ.get("KHERVEDOC_CAPTURE"):
         _schedule_capture(window, capture_path, int(os.environ.get("KHERVEDOC_CAPTURE_DELAY", "15000")))
