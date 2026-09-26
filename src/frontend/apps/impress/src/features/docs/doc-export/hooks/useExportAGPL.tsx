@@ -11,6 +11,10 @@ import { cloneElement, isValidElement } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { numberFootnotes } from '@/docs/doc-editor/components/custom-inline-content';
+import {
+  applyDocStyles,
+  readDocStyles,
+} from '@/docs/doc-editor/doc-styles/docStyles';
 import { readPageSetup } from '@/docs/doc-editor/page-setup/pageSetup';
 import { DocsBlockNoteEditor } from '@/docs/doc-editor/types';
 import { useProviderStore } from '@/docs/doc-management';
@@ -32,11 +36,14 @@ export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
       return;
     }
 
-    // editor.document is a fresh copy, so stamping footnote numbers is safe.
-    const exportDocument = numberFootnotes(editor.document);
-    const pageSetup = readPageSetup(
-      useProviderStore.getState().provider?.document,
+    const ydoc = useProviderStore.getState().provider?.document;
+    // editor.document is a fresh copy, so it can be rewritten for export:
+    // footnotes get their numbers and document styles are baked in.
+    const exportDocument = applyDocStyles(
+      numberFootnotes(editor.document),
+      readDocStyles(ydoc),
     );
+    const pageSetup = readPageSetup(ydoc);
     let blobExport: Blob | undefined = undefined;
     if (format === 'pdf') {
       const exporter = new KhervePDFExporter(

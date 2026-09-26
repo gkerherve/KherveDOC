@@ -50,6 +50,7 @@ import { useRightPanelStore } from '@/features/right-panel/stores/useRightPanelS
 import { useAnalytics } from '@/libs/Analytics';
 
 import { AI_FEATURE_FLAG, DEFAULT_LOCALE } from '../conf';
+import { DocStylesStyle } from '../doc-styles/useDocStyles';
 import {
   useHeadings,
   useSaveDoc,
@@ -343,6 +344,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
       <ParagraphFormattingStyle />
       <DocPageLayout />
       <FootnoteStyle />
+      <DocStylesStyle />
       <DocsCommentsStyle
         canSeeComment={canSeeComment}
         currentUserAvatarUrl={currentUserAvatarUrl}
@@ -455,6 +457,7 @@ export const BlockNoteReader = ({
       <ParagraphFormattingStyle />
       <DocPageLayout />
       <FootnoteStyle />
+      <DocStylesStyle />
       <DocsCommentsStyle canSeeComment={false} />
       <BlockNoteView
         className="--docs--main-editor"

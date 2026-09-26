@@ -6,7 +6,8 @@ import {
   PARAGRAPH_SPACINGS,
 } from './paragraphProps';
 
-const block = '.bn-block-content';
+// Doubled class: direct paragraph formatting must outrank document styles.
+const block = '.bn-block-content.bn-block-content';
 
 // Paragraph props are rendered by BlockNote as data-* attributes on the block.
 const rules = [

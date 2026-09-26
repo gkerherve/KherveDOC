@@ -18,6 +18,8 @@ import { Box, DropdownMenu, DropdownMenuOption, Icon } from '@/components';
 import { useFindReplaceStore } from '@/docs/doc-find-replace/stores/useFindReplaceStore';
 import { useDocStore } from '@/docs/doc-management';
 
+import { StylesModal } from '../../doc-styles/StylesModal';
+import { useDocStyles } from '../../doc-styles/useDocStyles';
 import { printWithPageSetup } from '../../page-setup/PageLayoutStyle';
 import { PageSetupModal } from '../../page-setup/PageSetupModal';
 import { usePageSetup } from '../../page-setup/usePageSetup';
@@ -27,7 +29,10 @@ import {
   DocsStyleSchema,
 } from '../../types';
 import { useDocsSlashMenuItems } from '../BlockNoteSuggestionMenu';
-import { ParagraphProps } from '../custom-blocks/paragraphProps';
+import {
+  ParagraphProps,
+  TEXT_BLOCK_TYPES,
+} from '../custom-blocks/paragraphProps';
 import {
   FONT_FAMILIES,
   FONT_SIZES,
@@ -125,6 +130,8 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isPageSetupOpen, setIsPageSetupOpen] = useState(false);
   const pageSetup = usePageSetup();
+  const docStyles = useDocStyles();
+  const [isStylesOpen, setIsStylesOpen] = useState(false);
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -229,6 +236,9 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
       ([key, value]) => state.blockProps[key] === value,
     );
   const currentType = blockTypes.find(isSelectedType);
+  const currentStyle = docStyles.styles.custom.find(
+    (style) => style.id === state.paragraph.styleName,
+  );
 
   const setBlockType = (type: string, props?: Record<string, unknown>) =>
     run(() =>
@@ -649,15 +659,38 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     <Box role="group" aria-label={t('Formatting')} $css={rowCss}>
       <DropdownMenu
         label={t('Paragraph style')}
-        options={blockTypes.map((item) => ({
-          label: item.name,
-          isSelected: item === currentType,
-          callback: () => setBlockType(item.type, item.props),
-        }))}
+        options={[
+          ...blockTypes.map((item, index) => ({
+            label: item.name,
+            isSelected: item === currentType && !currentStyle,
+            showSeparator: index === blockTypes.length - 1,
+            callback: () =>
+              setBlockType(item.type, {
+                ...item.props,
+                // Choosing a built-in kind drops the custom style.
+                ...(TEXT_BLOCK_TYPES.includes(
+                  item.type as (typeof TEXT_BLOCK_TYPES)[number],
+                ) && { styleName: '' }),
+              }),
+          })),
+          ...docStyles.styles.custom.map((style, index) => ({
+            label: style.name,
+            isSelected: currentStyle?.id === style.id,
+            showSeparator: index === docStyles.styles.custom.length - 1,
+            callback: () => setParagraphProps({ styleName: style.id }),
+          })),
+          {
+            label: t('Manage styles…'),
+            icon: <Icon iconName="tune" $size="18px" $theme="inherit" />,
+            callback: () => setIsStylesOpen(true),
+          },
+        ]}
         disabled={!state.hasText}
       >
         <DropdownTrigger label={t('Paragraph style')} width="128px">
-          <TriggerText>{currentType?.name ?? t('Paragraph style')}</TriggerText>
+          <TriggerText>
+            {currentStyle?.name ?? currentType?.name ?? t('Paragraph style')}
+          </TriggerText>
         </DropdownTrigger>
       </DropdownMenu>
       <DropdownMenu
@@ -840,6 +873,13 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
           </Box>
         </>,
         target,
+      )}
+      {isStylesOpen && (
+        <StylesModal
+          styles={docStyles.styles}
+          onSave={docStyles.save}
+          onClose={() => setIsStylesOpen(false)}
+        />
       )}
       {isPageSetupOpen && (
         <PageSetupModal
