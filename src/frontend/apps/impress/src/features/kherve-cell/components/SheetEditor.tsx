@@ -15,6 +15,9 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { DropdownMenuOption } from '@/components';
+import type { Menu } from '@/docs/doc-editor/components/KherveToolbar/MenuBar';
+import { useNativeMenus } from '@/docs/doc-editor/components/KherveToolbar/nativeMenus';
 import { useStyleElement } from '@/docs/doc-editor/page-setup/useStyleElement';
 
 import { useCellPresence, useSheetWorkbook } from '../hooks';
@@ -147,6 +150,9 @@ const SheetWorkbookView = ({
   const [solverOpen, setSolverOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
+  const xlsxInput = useRef<HTMLInputElement | null>(null);
+  const nativeMenus = useRef<Menu[]>([]);
+  useNativeMenus(nativeMenus);
 
   // Ctrl/Cmd+P prints the spreadsheet, not the page around the grid.
   useEffect(() => {
@@ -872,6 +878,108 @@ const SheetWorkbookView = ({
   if (!activeId) {
     return <div className="kc-loading">{loadingText}</div>;
   }
+  // The desktop app shows these in its native menu bar.
+  const option = (
+    label: string,
+    callback: () => void,
+    extra: Partial<DropdownMenuOption> = {},
+  ): DropdownMenuOption => ({ label, callback, ...extra });
+  nativeMenus.current = [
+    {
+      key: 'file',
+      label: t('File'),
+      options: [
+        option(t('Import an Excel file…'), () => xlsxInput.current?.click(), {
+          disabled: readOnly,
+        }),
+        option(t('Download as Excel (.xlsx)'), () => void downloadXlsx(), {
+          showSeparator: true,
+        }),
+        option(t('Print…'), () => setPrinting(true)),
+      ],
+    },
+    {
+      key: 'edit',
+      label: t('Edit'),
+      options: [
+        option(t('Undo'), () => workbook.undo(), {
+          disabled: readOnly || !workbook.undoManager.canUndo(),
+        }),
+        option(t('Redo'), () => workbook.redo(), {
+          disabled: readOnly || !workbook.undoManager.canRedo(),
+          showSeparator: true,
+        }),
+        option(t('Sort A → Z'), () => sort(false), { disabled: readOnly }),
+        option(t('Sort Z → A'), () => sort(true), { disabled: readOnly }),
+      ],
+    },
+    {
+      key: 'insert',
+      label: t('Insert'),
+      options: [
+        option(t('Row above'), () => insertRows(true), { disabled: readOnly }),
+        option(t('Row below'), () => insertRows(false), { disabled: readOnly }),
+        option(t('Column left'), () => insertCols(true), {
+          disabled: readOnly,
+        }),
+        option(t('Column right'), () => insertCols(false), {
+          disabled: readOnly,
+          showSeparator: true,
+        }),
+        option(t('Chart'), insertChart, { disabled: readOnly }),
+        option(
+          t('Sheet'),
+          () => {
+            setSheetId(workbook.addSheet());
+            setSelection(START);
+          },
+          { disabled: readOnly },
+        ),
+      ],
+    },
+    {
+      key: 'format',
+      label: t('Format'),
+      options: [
+        option(t('Bold'), () => toggleFormat('bold'), {
+          disabled: readOnly,
+          isSelected: !!format?.bold,
+        }),
+        option(t('Italic'), () => toggleFormat('italic'), {
+          disabled: readOnly,
+          isSelected: !!format?.italic,
+        }),
+        option(t('Underline'), () => toggleFormat('underline'), {
+          disabled: readOnly,
+          isSelected: !!format?.underline,
+          showSeparator: true,
+        }),
+        option(
+          freezeRows || freezeCols ? t('Unfreeze panes') : t('Freeze panes'),
+          toggleFreeze,
+          { disabled: readOnly },
+        ),
+        option(t('Clear formatting'), () => setFormat(null), {
+          disabled: readOnly,
+        }),
+      ],
+    },
+    {
+      key: 'tools',
+      label: t('Tools'),
+      options: [
+        option(
+          t('Solver…'),
+          () => {
+            setChartPanel(null);
+            setSolverOpen(true);
+          },
+          { disabled: readOnly },
+        ),
+      ],
+    },
+  ];
+
   const untrusted = workbook.untrustedPython();
   const range = selectionRange(selection);
   const rangeLabel =
@@ -899,7 +1007,7 @@ const SheetWorkbookView = ({
             setSolverOpen((open) => !open);
           }}
           solverOpen={solverOpen}
-          onImportXlsx={(file) => void importXlsx(file)}
+          onImportXlsx={() => xlsxInput.current?.click()}
           onDownloadXlsx={() => void downloadXlsx()}
           onPrint={() => setPrinting(true)}
         />
@@ -1116,6 +1224,19 @@ const SheetWorkbookView = ({
           />
         )}
       </div>
+      <input
+        ref={xlsxInput}
+        type="file"
+        hidden
+        accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) {
+            void importXlsx(file);
+          }
+        }}
+      />
       {printing && (
         <PrintDialog
           workbook={workbook}

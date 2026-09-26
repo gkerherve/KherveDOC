@@ -2,7 +2,7 @@
  * The spreadsheet's toolbar, in the window's toolbar slot like the text
  * editor's: undo, font styles, colours, alignment and number formats.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -50,7 +50,7 @@ interface SheetToolbarProps {
   onInsertChart: () => void;
   onSolver: () => void;
   solverOpen: boolean;
-  onImportXlsx: (file: File) => void;
+  onImportXlsx: () => void;
   onDownloadXlsx: () => void;
   onPrint: () => void;
 }
@@ -102,7 +102,6 @@ export const SheetToolbar = ({
   onPrint,
 }: SheetToolbarProps) => {
   const { t } = useTranslation();
-  const fileInput = useRef<HTMLInputElement | null>(null);
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -237,20 +236,7 @@ export const SheetToolbar = ({
         <ToolbarButton
           icon="upload_file"
           label={t('Import an Excel file (.xlsx) — its sheets are added')}
-          onClick={() => fileInput.current?.click()}
-        />
-        <input
-          ref={fileInput}
-          type="file"
-          hidden
-          accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) {
-              onImportXlsx(file);
-            }
-          }}
+          onClick={onImportXlsx}
         />
         <ToolbarButton
           icon="download"
