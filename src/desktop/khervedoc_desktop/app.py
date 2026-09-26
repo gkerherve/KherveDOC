@@ -64,6 +64,8 @@ ICON_PATH = Path(__file__).with_name("icon.png")
 NET_ERR_ABORTED = -3
 # Resolution the print preview's PDF pages are rasterised at for printing.
 PRINT_DPI = 300
+# KHERVEDOC_DEBUG=1 shows the web page's console messages in the terminal.
+DEBUG_CONSOLE = os.environ.get("KHERVEDOC_DEBUG", "") not in ("", "0")
 
 _windows: list["MainWindow"] = []
 _profile: QWebEngineProfile | None = None
@@ -144,6 +146,13 @@ class Page(QWebEnginePage):
             permission.grant()
         else:
             permission.deny()
+
+    def javaScriptConsoleMessage(self, level, message, line, source):
+        # Qt prints every page console message ("js: ...") by default; the
+        # web app's development server is chatty, so only show them on
+        # request.
+        if DEBUG_CONSOLE:
+            print(f"js [{level.name}] {source}:{line}: {message}", file=sys.stderr)
 
     def acceptNavigationRequest(self, url, _type, is_main_frame):
         if not is_main_frame:

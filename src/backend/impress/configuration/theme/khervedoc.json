@@ -5,7 +5,7 @@
         "src": "/assets/icon-khervedoc.svg",
         "alt": "KherveDOC logo",
         "width": 54,
-        "height": 63,
+        "height": 54,
         "style": {
           "width": "54px",
           "height": "auto"
@@ -132,7 +132,7 @@
     "icon-banner": {
       "src": "/assets/icon-khervedoc.svg",
       "width": 64,
-      "height": 74,
+      "height": 64,
       "style": {
         "width": "64px",
         "height": "auto"
