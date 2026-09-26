@@ -214,3 +214,29 @@ def test_media_addresses_are_rewritten():
     assert LOCAL_MEDIA.match(local)["key"] == "0123456789abcdef01234567.png"
     new = rewrite_media(state, {local: "https://kd.example/api/x"})
     assert media_urls(new) == ["https://kd.example/api/x"]
+
+
+def test_quitting_with_an_editor_connected_is_quick(tmp_path):
+    import time
+    static = tmp_path / "web"
+    static.mkdir()
+    (static / "index.html").write_text("home")
+    library = Library(tmp_path / "data", tmp_path / "Documents")
+    srv = LocalServer(library, static, "1", port=0)
+    srv.start()
+    doc_id = library.create("Open")
+
+    async def connect():
+        s = ClientSession()
+        ws = await s.ws_connect(
+            f"ws://127.0.0.1:{srv.port}/collaboration/ws/?room={doc_id}")
+        await ws.send_bytes(hp.auth_message(doc_id))
+        await ws.receive()
+        return s, ws
+
+    loop = asyncio.new_event_loop()
+    session, ws = loop.run_until_complete(connect())
+    start = time.monotonic()
+    srv.stop()
+    assert time.monotonic() - start < 4
+    loop.run_until_complete(session.close())

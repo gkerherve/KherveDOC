@@ -108,6 +108,7 @@ class LocalServer:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._runner: web.AppRunner | None = None
         self._ready = threading.Event()
+        self._sockets: set[web.WebSocketResponse] = set()
         self._error: BaseException | None = None
 
     # ── Addresses ────────────────────────────────────────────────────
@@ -147,7 +148,8 @@ class LocalServer:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         try:
-            self._runner = web.AppRunner(self._app(), access_log=None)
+            self._runner = web.AppRunner(self._app(), access_log=None,
+                                         shutdown_timeout=1.0)
             self._loop.run_until_complete(self._runner.setup())
             site = web.TCPSite(self._runner, "127.0.0.1", self.port)
             self._loop.run_until_complete(site.start())
@@ -177,10 +179,20 @@ class LocalServer:
             self.call(self.rooms.flush_all)
         except Exception:
             log.exception("Saving on quit failed")
-        if self._runner is not None:
+        try:
             asyncio.run_coroutine_threadsafe(
-                self._runner.cleanup(), self._loop).result(10)
+                self._shutdown(), self._loop).result(5)
+        except Exception:  # quitting anyway: everything is saved
+            log.exception("Local server shutdown")
         self._loop.call_soon_threadsafe(self._loop.stop)
+
+    async def _shutdown(self) -> None:
+        # Open editors keep their live connection; close them first, or
+        # the server waits for them.
+        for sock in list(self._sockets):
+            await sock.close()
+        if self._runner is not None:
+            await self._runner.cleanup()
 
     # ── Routes ───────────────────────────────────────────────────────
     def _app(self) -> web.Application:
@@ -458,6 +470,7 @@ class LocalServer:
             return sock
         client = Client(sock.send_bytes)
         room.join(client)
+        self._sockets.add(sock)
         try:
             async for msg in sock:
                 if msg.type == WSMsgType.BINARY:
@@ -465,6 +478,7 @@ class LocalServer:
                 elif msg.type == WSMsgType.ERROR:
                     break
         finally:
+            self._sockets.discard(sock)
             room.leave(client)
             room.flush()
         return sock
