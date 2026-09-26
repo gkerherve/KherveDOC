@@ -10,6 +10,7 @@ import { odtDocsSchemaMappings } from '../mappingODT';
 import {
   docxParagraphFormatting,
   pdfParagraphFormatting,
+  pdfTextFormatting,
 } from '../paragraphFormatting';
 
 const spaced = {
@@ -29,13 +30,14 @@ describe('paragraph spacing and indent in exports', () => {
   });
 
   it('converts to PDF points', () => {
-    const style = pdfParagraphFormatting(spaced);
-    expect(style).toMatchObject({
+    expect(pdfParagraphFormatting(spaced)).toEqual({
       lineHeight: 1.5,
       marginTop: 12,
       marginBottom: 6,
     });
-    expect(style.textIndent).toBeCloseTo(35.43, 1);
+    const text = pdfTextFormatting(spaced);
+    expect(text.lineHeight).toBe(1.5);
+    expect(text.textIndent).toBeCloseTo(35.43, 1);
   });
 
   it('writes an ODT paragraph style', async () => {

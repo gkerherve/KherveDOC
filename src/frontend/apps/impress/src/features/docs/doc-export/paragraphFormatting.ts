@@ -31,12 +31,21 @@ export const docxParagraphFormatting = (
   };
 };
 
+/** Block container style (spacing), applied to every block type. */
 export const pdfParagraphFormatting = (props: object): Style => {
   const f = paragraphFormatting(props);
   return {
     ...(f.lineSpacing !== undefined && { lineHeight: f.lineSpacing }),
     ...(f.spaceBeforePt !== undefined && { marginTop: f.spaceBeforePt }),
     ...(f.spaceAfterPt !== undefined && { marginBottom: f.spaceAfterPt }),
+  };
+};
+
+/** Text style; react-pdf does not pass indent down from containers. */
+export const pdfTextFormatting = (props: object): Style => {
+  const f = paragraphFormatting(props);
+  return {
+    ...(f.lineSpacing !== undefined && { lineHeight: f.lineSpacing }),
     ...(f.firstLineIndentCm !== undefined && {
       textIndent: f.firstLineIndentCm * PT_PER_CM,
     }),

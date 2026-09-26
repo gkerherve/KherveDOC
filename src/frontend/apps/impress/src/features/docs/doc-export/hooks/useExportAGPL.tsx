@@ -10,7 +10,9 @@ import i18next from 'i18next';
 import { cloneElement, isValidElement } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { readPageSetup } from '@/docs/doc-editor/page-setup/pageSetup';
 import { DocsBlockNoteEditor } from '@/docs/doc-editor/types';
+import { useProviderStore } from '@/docs/doc-management';
 import { Doc } from '@/docs/doc-management/types';
 
 import { KhervePDFExporter } from '../KhervePDFExporter';
@@ -18,6 +20,7 @@ import { exportCorsResolveFileUrl } from '../api/exportResolveFileUrl';
 import { docxDocsSchemaMappings } from '../mappingDocx';
 import { odtDocsSchemaMappings } from '../mappingODT';
 import { pdfDocsSchemaMappings } from '../mappingPDF';
+import { docxSectionOptions, odtWithPageSetup } from '../pageSetupExport';
 
 export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
   const { t } = useTranslation();
@@ -28,6 +31,9 @@ export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
     }
 
     const exportDocument = editor.document;
+    const pageSetup = readPageSetup(
+      useProviderStore.getState().provider?.document,
+    );
     let blobExport: Blob | undefined = undefined;
     if (format === 'pdf') {
       const exporter = new KhervePDFExporter(
@@ -57,8 +63,9 @@ export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
           },
         },
       );
-      const rawPdfDocument = (await exporter.toReactPDFDocument(
+      const rawPdfDocument = (await exporter.toReactPDFDocumentWithPageSetup(
         exportDocument,
+        pageSetup,
       )) as React.ReactElement<DocumentProps>;
 
       // Add language, title and outline properties to improve PDF accessibility and navigation
@@ -78,14 +85,17 @@ export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
 
       blobExport = await exporter.toBlob(exportDocument, {
         documentOptions: { title: documentTitle },
-        sectionOptions: {},
+        sectionOptions: docxSectionOptions(pageSetup),
       });
     } else if (format === 'odt') {
       const exporter = new ODTExporter(editor.schema, odtDocsSchemaMappings, {
         resolveFileUrl: async (url) => exportCorsResolveFileUrl(doc.id, url),
       });
 
-      blobExport = await exporter.toODTDocument(exportDocument);
+      blobExport = await odtWithPageSetup(
+        await exporter.toODTDocument(exportDocument),
+        pageSetup,
+      );
     }
 
     return blobExport;

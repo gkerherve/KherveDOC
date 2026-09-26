@@ -4,8 +4,18 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence
+import json
+
+from PySide6.QtCore import QMarginsF, QSettings, QSizeF, Qt, QTimer, QUrl
+from PySide6.QtGui import (
+    QAction,
+    QDesktopServices,
+    QIcon,
+    QKeySequence,
+    QPageLayout,
+    QPageSize,
+)
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWebEngineCore import (
     QWebEngineDownloadRequest,
     QWebEngineLoadingInfo,
@@ -191,10 +201,13 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.view)
 
         self._devtools: QWebEngineView | None = None
+        self._printer: QPrinter | None = None
         self._asking_for_server = False
 
         self.page.titleChanged.connect(lambda t: self.setWindowTitle(t or APP_NAME))
         self.page.loadingChanged.connect(self._on_loading_changed)
+        self.page.printRequested.connect(self._on_print_requested)
+        self.view.printFinished.connect(self._on_print_finished)
         self._build_menus()
         self.view.load(url or QUrl(server_url()))
 
@@ -283,6 +296,27 @@ class MainWindow(QMainWindow):
     def _toggle_full_screen(self):
         self.showNormal() if self.isFullScreen() else self.showFullScreen()
 
+    def _on_print_requested(self):
+        # The page records its page setup before calling window.print().
+        self.page.runJavaScript(
+            "JSON.stringify(window.__khervePageSetup || null)",
+            0,
+            self._print_with_page_setup,
+        )
+
+    def _print_with_page_setup(self, raw):
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        layout = page_layout_from_json(raw)
+        if layout is not None:
+            printer.setPageLayout(layout)
+        if QPrintDialog(printer, self).exec() != QDialog.DialogCode.Accepted:
+            return
+        self._printer = printer
+        self.view.print(printer)
+
+    def _on_print_finished(self, _ok: bool):
+        self._printer = None
+
     def _open_devtools(self):
         if self._devtools is None:
             self._devtools = QWebEngineView()
@@ -305,6 +339,30 @@ class MainWindow(QMainWindow):
             "<p>Based on <a href='https://github.com/suitenumerique/docs'>Docs</a> "
             "by DINUM and ZenDiS (MIT licence).</p>",
         )
+
+
+def page_layout_from_json(raw) -> QPageLayout | None:
+    """Printer layout from the page setup the web page exposes, if valid."""
+    try:
+        setup = json.loads(raw) if isinstance(raw, str) else None
+        width = float(setup["paperWidthCm"]) * 10
+        height = float(setup["paperHeightCm"]) * 10
+        margins = {k: float(setup["marginsCm"][k]) * 10 for k in ("left", "top", "right", "bottom")}
+    except (TypeError, KeyError, ValueError):
+        return None
+    if not (50 <= width <= 1000 and 50 <= height <= 1000):
+        return None
+    orientation = (
+        QPageLayout.Orientation.Landscape
+        if setup.get("orientation") == "landscape"
+        else QPageLayout.Orientation.Portrait
+    )
+    return QPageLayout(
+        QPageSize(QSizeF(width, height), QPageSize.Unit.Millimeter),
+        orientation,
+        QMarginsF(margins["left"], margins["top"], margins["right"], margins["bottom"]),
+        QPageLayout.Unit.Millimeter,
+    )
 
 
 def handle_download(download: QWebEngineDownloadRequest):

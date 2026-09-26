@@ -58,6 +58,7 @@ import {
   useUploadFile,
   useUploadStatus,
 } from '../hook';
+import { DocPageLayout } from '../page-setup/PageLayoutStyle';
 import { useEditorStore } from '../stores';
 import { DocsEditorStyle } from '../styles';
 import { DocsBlockNoteEditor } from '../types';
@@ -334,6 +335,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
     <Box ref={refEditorContainer} $height="100%">
       <DocsEditorStyle />
       <ParagraphFormattingStyle />
+      <DocPageLayout />
       <DocsCommentsStyle
         canSeeComment={canSeeComment}
         currentUserAvatarUrl={currentUserAvatarUrl}
@@ -443,6 +445,7 @@ export const BlockNoteReader = ({
     <Box>
       <DocsEditorStyle />
       <ParagraphFormattingStyle />
+      <DocPageLayout />
       <DocsCommentsStyle canSeeComment={false} />
       <BlockNoteView
         className="--docs--main-editor"

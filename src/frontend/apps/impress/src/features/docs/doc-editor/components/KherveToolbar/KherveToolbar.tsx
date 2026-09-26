@@ -15,10 +15,12 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Box, DropdownMenu, DropdownMenuOption, Icon } from '@/components';
-import { printDocumentWithStyles } from '@/docs/doc-export/utils_print';
 import { useFindReplaceStore } from '@/docs/doc-find-replace/stores/useFindReplaceStore';
 import { useDocStore } from '@/docs/doc-management';
 
+import { printWithPageSetup } from '../../page-setup/PageLayoutStyle';
+import { PageSetupModal } from '../../page-setup/PageSetupModal';
+import { usePageSetup } from '../../page-setup/usePageSetup';
 import {
   DocsBlockSchema,
   DocsInlineContentSchema,
@@ -121,6 +123,8 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     ReturnType<ReturnType<typeof CommentsExtension>> | undefined;
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isPageSetupOpen, setIsPageSetupOpen] = useState(false);
+  const pageSetup = usePageSetup();
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -551,7 +555,12 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
         icon="print"
         label={t('Print')}
         shortcut={`${MOD}P`}
-        onClick={printDocumentWithStyles}
+        onClick={() => printWithPageSetup(pageSetup.setup)}
+      />
+      <ToolbarButton
+        icon="description"
+        label={t('Page setup')}
+        onClick={() => setIsPageSetupOpen(true)}
       />
       {currentDoc && (
         <ToolbarButton
@@ -820,6 +829,13 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
           </Box>
         </>,
         target,
+      )}
+      {isPageSetupOpen && (
+        <PageSetupModal
+          setup={pageSetup.setup}
+          onSave={pageSetup.save}
+          onClose={() => setIsPageSetupOpen(false)}
+        />
       )}
       {isExportOpen && currentDoc && (
         <ModalExport doc={currentDoc} onClose={() => setIsExportOpen(false)} />
