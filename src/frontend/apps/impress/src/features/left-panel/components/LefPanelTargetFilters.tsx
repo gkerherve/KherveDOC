@@ -5,7 +5,6 @@ import { css } from 'styled-components';
 import { Box, Icon, StyledLink, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { DocDefaultFilter } from '@/docs/doc-management';
-import { SpreadsheetIcon, useCellsUrl } from '@/features/cells';
 import { useLeftPanelStore } from '@/features/left-panel';
 import ClockIcon from '@/icons/clock.svg';
 import SharedIcon from '@/icons/shared.svg';
@@ -21,7 +20,6 @@ export const LeftPanelTargetFilters = () => {
   const { isMobile } = useResponsiveStore();
   const { closePanel } = useLeftPanelStore();
   const { colorsTokens, spacingsTokens } = useCunninghamTheme();
-  const cellsUrl = useCellsUrl();
 
   const target =
     (searchParams.get('target') as DocDefaultFilter) ??
@@ -146,37 +144,6 @@ export const LeftPanelTargetFilters = () => {
           </StyledLink>
         );
       })}
-      {cellsUrl && (
-        <StyledLink
-          href="/cells"
-          aria-label={t('Spreadsheets')}
-          aria-current={pathname?.startsWith('/cells') ? 'page' : undefined}
-          onClick={handleFilterClick}
-          $css={css`
-            align-items: center;
-            justify-content: flex-start;
-            gap: var(--c--globals--spacings--3xs);
-            padding: var(--c--globals--spacings--2xs);
-            border-radius: var(--c--globals--spacings--3xs);
-            background-color: ${
-              pathname?.startsWith('/cells')
-                ? 'var(--c--contextuals--background--semantic--contextual--primary)'
-                : 'transparent'
-            };
-            font-weight: 500;
-            color: inherit;
-            text-decoration: none;
-            &:hover {
-              background-color: var(
-                --c--contextuals--background--semantic--contextual--primary
-              );
-            }
-          `}
-        >
-          <Icon icon={<SpreadsheetIcon size={20} />} $padding="4xs" />
-          <Text $size="sm">{t('Spreadsheets')}</Text>
-        </StyledLink>
-      )}
     </Box>
   );
 };

@@ -576,11 +576,6 @@ class Base(Configuration):
     FRONTEND_JS_URL = values.Value(
         None, environ_name="FRONTEND_JS_URL", environ_prefix=None
     )
-    # KherveCELL (spreadsheets, a Grist fork) signed in through the same
-    # identity provider; KherveDOC lists and embeds its spreadsheets when set.
-    KHERVECELL_URL = values.Value(
-        None, environ_name="KHERVECELL_URL", environ_prefix=None
-    )
     FRONTEND_SILENT_LOGIN_ENABLED = values.BooleanValue(
         default=False, environ_name="FRONTEND_SILENT_LOGIN_ENABLED", environ_prefix=None
     )

@@ -1,5 +1,4 @@
-import type { SpreadsheetTable } from '@/features/cells/api/cellsApi';
-import { cellText } from '@/features/cells/api/cellsApi';
+import { columnName } from '@/features/kherve-cell/model/layout';
 
 /** The copy of a spreadsheet table kept in the document, as display text. */
 export interface SpreadsheetSnapshot {
@@ -10,13 +9,27 @@ export interface SpreadsheetSnapshot {
 export const MAX_SNAPSHOT_ROWS = 200;
 export const MAX_SNAPSHOT_COLUMNS = 30;
 
-export const snapshotOf = (table: SpreadsheetTable): SpreadsheetSnapshot => {
-  const columns = table.columns.slice(0, MAX_SNAPSHOT_COLUMNS);
+/**
+ * A range's shown values as a table: its first row as the column titles
+ * (*header*), or the column letters from *firstColumn* on.
+ */
+export const snapshotOfRows = (
+  rows: string[][],
+  header: boolean,
+  firstColumn = 0,
+): SpreadsheetSnapshot => {
+  const width = Math.min(
+    MAX_SNAPSHOT_COLUMNS,
+    Math.max(0, ...rows.map((row) => row.length)),
+  );
+  const fit = (row: string[]) =>
+    Array.from({ length: width }, (_, i) => row[i] ?? '');
+  const body = header ? rows.slice(1) : rows;
   return {
-    columns,
-    rows: table.rows
-      .slice(0, MAX_SNAPSHOT_ROWS)
-      .map((row) => columns.map((column) => cellText(row[column]))),
+    columns: header
+      ? fit(rows[0] ?? [])
+      : Array.from({ length: width }, (_, i) => columnName(firstColumn + i)),
+    rows: body.slice(0, MAX_SNAPSHOT_ROWS).map(fit),
   };
 };
 

@@ -1,40 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
-import { cellText } from '@/features/cells/api/cellsApi';
-
 import {
   MAX_SNAPSHOT_ROWS,
   parseSnapshot,
   serializeSnapshot,
-  snapshotOf,
+  snapshotOfRows,
 } from '../spreadsheetSnapshot';
 
 describe('spreadsheet snapshots', () => {
-  it('turns a KherveCELL table into display text', () => {
-    const snapshot = snapshotOf({
-      id: 'Table1',
-      columns: ['Sample', 'Mass', 'Tags', 'Error'],
+  it('uses the first row as titles, or column letters', () => {
+    const rows = [['Sample', 'Mass'], ['A', '1.50'], ['B']];
+    expect(snapshotOfRows(rows, true)).toEqual({
+      columns: ['Sample', 'Mass'],
       rows: [
-        { Sample: 'A', Mass: 1.5, Tags: ['L', 'x', 'y'], Error: ['E', 'Div'] },
-        { Sample: null, Mass: 0, Tags: null, Error: '' },
+        ['A', '1.50'],
+        ['B', ''],
       ],
     });
-    expect(snapshot).toEqual({
-      columns: ['Sample', 'Mass', 'Tags', 'Error'],
-      rows: [
-        ['A', '1.5', 'x, y', '#Div'],
-        ['', '0', '', ''],
-      ],
-    });
+    expect(snapshotOfRows(rows, false, 2).columns).toEqual(['C', 'D']);
+    expect(snapshotOfRows(rows, false).rows).toHaveLength(3);
   });
 
   it('caps the copy kept in the document', () => {
-    const rows = Array.from({ length: MAX_SNAPSHOT_ROWS + 50 }, (_, i) => ({
-      N: i,
-    }));
-    expect(snapshotOf({ id: 'T', columns: ['N'], rows }).rows).toHaveLength(
-      MAX_SNAPSHOT_ROWS,
-    );
+    const rows = Array.from({ length: MAX_SNAPSHOT_ROWS + 50 }, (_, i) => [
+      String(i),
+    ]);
+    expect(snapshotOfRows(rows, false).rows).toHaveLength(MAX_SNAPSHOT_ROWS);
   });
 
   it('round-trips and rejects malformed copies', () => {
@@ -48,9 +39,5 @@ describe('spreadsheet snapshots', () => {
       columns: ['a', 'b'],
       rows: [['1', '']],
     });
-  });
-
-  it('formats KherveCELL dates', () => {
-    expect(cellText(['d', 0])).toBe(new Date(0).toLocaleDateString());
   });
 });

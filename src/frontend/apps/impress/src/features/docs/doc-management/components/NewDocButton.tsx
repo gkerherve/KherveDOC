@@ -9,7 +9,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Text } from '@/components';
-import { SpreadsheetIcon } from '@/features/cells';
+import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
 import { useLeftPanelStore } from '@/features/left-panel/stores/useLeftPanelStore';
 import ArrowDownIcon from '@/icons/arrow-drop-down.svg';
 import SubDocIcon from '@/icons/doc-new-subdoc.svg';

@@ -31,7 +31,6 @@ pytestmark = pytest.mark.django_db
     FRONTEND_CSS_URL="http://testcss/",
     FRONTEND_JS_URL="http://testjs/",
     FRONTEND_THEME="test-theme",
-    KHERVECELL_URL="http://cells.test",
     MEDIA_BASE_URL="http://testserver/",
     POSTHOG_KEY="132456",
     POSTHOG_HOST="https://eu.i.posthog-test.com",
@@ -68,7 +67,6 @@ def test_api_config(is_authenticated):
         "FRONTEND_JS_URL": "http://testjs/",
         "FRONTEND_SILENT_LOGIN_ENABLED": False,
         "FRONTEND_THEME": "test-theme",
-        "KHERVECELL_URL": "http://cells.test",
         "LANGUAGES": [
             ["en-us", "English"],
             ["fr-fr", "Français"],

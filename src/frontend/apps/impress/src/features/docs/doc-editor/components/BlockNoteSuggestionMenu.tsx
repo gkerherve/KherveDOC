@@ -13,8 +13,6 @@ import {
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useCellsUrl } from '@/features/cells';
-
 import {
   DocsBlockSchema,
   DocsInlineContentSchema,
@@ -68,7 +66,6 @@ export const useDocsSlashMenuItems = (aiAllowed: boolean) => {
   const fileBlocksName = dictionaryDate.slash_menu.file.group;
 
   const getInterlinkingMenuItems = useGetInterlinkingMenuItems();
-  const cellsUrl = useCellsUrl();
 
   return useMemo(() => {
     // We insert it after the "Code Block" item to have the interlinking block displayed after the basic blocks
@@ -79,9 +76,7 @@ export const useDocsSlashMenuItems = (aiAllowed: boolean) => {
       getPageBreakReactSlashMenuItems(editor),
       getMultiColumnSlashMenuItems?.(editor) || [],
       getPdfReactSlashMenuItems(editor, t, fileBlocksName),
-      cellsUrl
-        ? getSpreadsheetReactSlashMenuItems(editor, t, fileBlocksName)
-        : [],
+      getSpreadsheetReactSlashMenuItems(editor, t, fileBlocksName),
       getCalloutReactSlashMenuItems(editor, t, basicBlocksName),
       getMathSlashMenuItems(editor),
       getDiagramSlashMenuItems(editor),
@@ -104,7 +99,6 @@ export const useDocsSlashMenuItems = (aiAllowed: boolean) => {
     t,
     fileBlocksName,
     basicBlocksName,
-    cellsUrl,
     aiAllowed,
     getInterlinkingMenuItems,
   ]);

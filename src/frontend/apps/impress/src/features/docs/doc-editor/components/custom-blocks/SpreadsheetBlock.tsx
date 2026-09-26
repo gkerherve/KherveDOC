@@ -9,39 +9,44 @@ import { insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions';
 import { createReactBlockSpec } from '@blocknote/react';
 import type { TFunction } from 'i18next';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
-import {
-  CellsAuthError,
-  CellsSignIn,
-  SpreadsheetIcon,
-  useSpreadsheetTable,
-} from '@/features/cells';
+import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
+import { readSpreadsheet } from '@/features/kherve-cell/model/reader';
 
 import type { DocsBlockNoteEditor } from '../../types';
 
 import { SpreadsheetPicker } from './SpreadsheetPicker';
+import { SpreadsheetTableView } from './SpreadsheetTableView';
 import {
-  SpreadsheetSnapshot,
   parseSnapshot,
   serializeSnapshot,
-  snapshotOf,
+  snapshotOfRows,
 } from './spreadsheetSnapshot';
 
+export { SpreadsheetTableView };
+
 /**
- * A table from a KherveCELL spreadsheet, like an embedded Excel sheet in
- * Word. It shows the live table (refreshed every few seconds) and keeps a
- * copy in the document for printing, exports and readers who are not
- * connected to KherveCELL.
+ * A table from a KherveDOC spreadsheet, like an embedded Excel range in
+ * Word. The document keeps a copy of the values (for printing, exports and
+ * readers who cannot open the spreadsheet); whoever can edit the document
+ * and open the spreadsheet refreshes it when the document opens, or with
+ * Refresh.
+ *
+ * Blocks made with the former spreadsheet service (Grist) have a tableId
+ * and no sheetId: they keep showing their copy until linked again.
  */
 
 type SpreadsheetBlockConfig = BlockConfig<
   'spreadsheet',
   {
     docId: { default: '' };
+    sheetId: { default: '' };
+    range: { default: '' };
+    header: { default: true };
     tableId: { default: '' };
     name: { default: '' };
     snapshot: { default: '' };
@@ -64,59 +69,45 @@ interface SpreadsheetComponentProps {
   editor: SpreadsheetEditor;
 }
 
-const tableCss = css`
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.92em;
-  th,
-  td {
-    border: 1px solid var(--c--contextuals--border--surface--primary, #ddd);
-    padding: 4px 8px;
-    text-align: left;
-    vertical-align: top;
-  }
-  th {
-    font-weight: 600;
-    background: var(--c--contextuals--background--surface--tertiary, #f4f5f7);
-  }
-`;
-
-export const SpreadsheetTableView = ({
-  snapshot,
-}: {
-  snapshot: SpreadsheetSnapshot;
-}) => (
-  <Box $css="overflow-x: auto; max-width: 100%;">
-    <Box as="table" $css={tableCss}>
-      <thead>
-        <tr>
-          {snapshot.columns.map((column, index) => (
-            <th key={index}>{column}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {snapshot.rows.map((row, rowIndex) => (
-          <tr key={rowIndex}>
-            {row.map((cell, cellIndex) => (
-              <td key={cellIndex}>{cell}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </Box>
-  </Box>
-);
-
 const SpreadsheetComponent = ({ block, editor }: SpreadsheetComponentProps) => {
   const { t } = useTranslation();
-  const { docId, tableId, name, snapshot: stored } = block.props;
+  const {
+    docId,
+    sheetId,
+    range,
+    header,
+    tableId,
+    name,
+    snapshot: stored,
+  } = block.props;
   const editable = editor.isEditable;
+  const linked = !!docId && !!sheetId;
+  const legacy = !!tableId && !sheetId;
   const [picking, setPicking] = useState(false);
-  const { data, error } = useSpreadsheetTable(docId, tableId);
+  const [refreshing, setRefreshing] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const shown = parseSnapshot(stored);
 
-  const live = useMemo(() => (data ? snapshotOf(data) : undefined), [data]);
-  const shown = live ?? parseSnapshot(stored);
+  const refresh = async () => {
+    if (!linked) {
+      return;
+    }
+    setRefreshing(true);
+    setProblem(null);
+    try {
+      const read = await readSpreadsheet(docId, sheetId, range);
+      const serialized = serializeSnapshot(
+        snapshotOfRows(read.rows, header, read.range.left),
+      );
+      if (serialized !== stored && editor.isEditable) {
+        editor.updateBlock(block, { props: { snapshot: serialized } });
+      }
+    } catch {
+      setProblem(t('The spreadsheet could not be read.'));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Open the chooser for whoever just inserted this block.
   useEffect(() => {
@@ -128,18 +119,27 @@ const SpreadsheetComponent = ({ block, editor }: SpreadsheetComponentProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the document's copy in step with the spreadsheet.
+  // Bring the copy up to date when the document opens (editors only).
   useEffect(() => {
-    if (!live || !editable) {
-      return;
+    if (linked && editable) {
+      void refresh();
     }
-    const serialized = serializeSnapshot(live);
-    if (serialized !== stored) {
-      editor.updateBlock(block, { props: { snapshot: serialized } });
-    }
-    // `block` changes on every update; the id is what matters.
+    // When the linked range changes; `block` changes on every update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, editable, stored, block.id]);
+  }, [docId, sheetId, range, header, editable]);
+
+  const link = (label: string, onClick: () => void, disabled = false) => (
+    <Text
+      as="button"
+      $size="sm"
+      $theme="brand"
+      $css="background: none; border: 0; cursor: pointer; padding: 0;"
+      aria-disabled={disabled}
+      onClick={() => !disabled && onClick()}
+    >
+      {label}
+    </Text>
+  );
 
   return (
     <Box
@@ -162,50 +162,64 @@ const SpreadsheetComponent = ({ block, editor }: SpreadsheetComponentProps) => {
         <SpreadsheetIcon size={18} />
         <Text $weight="600" $size="sm">
           {name || t('Spreadsheet')}
-          {tableId ? ` · ${tableId}` : ''}
+          {range ? ` · ${range}` : ''}
         </Text>
         <Box $direction="row" $gap="sm" $margin={{ left: 'auto' }}>
-          {editable && (
-            <Text
-              as="button"
-              $size="sm"
-              $theme="brand"
-              $css="background: none; border: 0; cursor: pointer; padding: 0;"
-              onClick={() => setPicking(true)}
-            >
-              {docId ? t('Change') : t('Choose a spreadsheet…')}
-            </Text>
-          )}
-          {docId && (
-            <Link href={`/cells/${docId}`}>
+          {linked &&
+            editable &&
+            link(
+              refreshing ? t('Refreshing…') : t('Refresh'),
+              () => void refresh(),
+              refreshing,
+            )}
+          {editable &&
+            link(docId ? t('Change') : t('Choose a spreadsheet…'), () =>
+              setPicking(true),
+            )}
+          {linked && (
+            <Link href={`/docs/${docId}/`}>
               <Text as="span" $size="sm" $theme="brand">
-                {t('Open in KherveCELL')}
+                {t('Open the spreadsheet')}
               </Text>
             </Link>
           )}
         </Box>
       </Box>
+      {legacy && (
+        <Text $size="xs" $variation="secondary" $margin={{ bottom: 'xs' }}>
+          {t(
+            'A copy from the former spreadsheet service. Choose a spreadsheet to link this table again.',
+          )}
+        </Text>
+      )}
+      {problem && (
+        <Text $size="sm" $theme="danger">
+          {problem}
+        </Text>
+      )}
       {shown ? (
         <SpreadsheetTableView snapshot={shown} />
       ) : (
-        !docId && (
-          <Text $size="sm" $variation="secondary">
-            {t('No spreadsheet chosen yet.')}
-          </Text>
-        )
+        <Text $size="sm" $variation="secondary">
+          {docId
+            ? t('Reading the spreadsheet…')
+            : t('No spreadsheet chosen yet.')}
+        </Text>
       )}
-      {error instanceof CellsAuthError && docId && <CellsSignIn />}
       {picking && (
         <SpreadsheetPicker
-          initialDocId={docId}
+          initial={linked ? { docId, sheetId, range, header, name } : undefined}
           onClose={() => setPicking(false)}
           onPick={(choice) => {
             setPicking(false);
             editor.updateBlock(block, {
               props: {
                 docId: choice.docId,
-                tableId: choice.tableId,
+                sheetId: choice.sheetId,
+                range: choice.range,
+                header: choice.header,
                 name: choice.name,
+                tableId: '',
                 snapshot: '',
               },
             });
@@ -221,6 +235,9 @@ export const SpreadsheetBlock = createReactBlockSpec(
     type: 'spreadsheet',
     propSchema: {
       docId: { default: '' },
+      sheetId: { default: '' },
+      range: { default: '' },
+      header: { default: true },
       tableId: { default: '' },
       name: { default: '' },
       snapshot: { default: '' },
@@ -283,9 +300,9 @@ export const getSpreadsheetReactSlashMenuItems = (
   {
     title: t('Spreadsheet table'),
     onItemClick: () => insertSpreadsheetBlock(editor),
-    aliases: ['spreadsheet', 'sheet', 'excel', 'grist', 'khervecell', 'cell'],
+    aliases: ['spreadsheet', 'sheet', 'excel', 'khervecell', 'cell', 'table'],
     group,
     icon: <SpreadsheetIcon size={18} />,
-    subtext: t('A live table from a KherveCELL spreadsheet'),
+    subtext: t('Cells from one of your spreadsheets, kept up to date'),
   },
 ];

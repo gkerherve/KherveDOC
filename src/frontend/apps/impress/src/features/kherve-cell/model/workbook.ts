@@ -378,7 +378,7 @@ export class SheetWorkbook {
    * The rows and columns a sheet uses: cells that show something or have
    * a format, and the cells its charts cover. Undefined when empty.
    */
-  usedRange(sheetId: string) {
+  usedRange(sheetId: string, withCharts = true) {
     let bottom = -1;
     let right = -1;
     const take = (row: number, col: number) => {
@@ -397,7 +397,7 @@ export class SheetWorkbook {
         take(cell.row, cell.col);
       }
     });
-    for (const { spec } of this.charts(sheetId)) {
+    for (const { spec } of withCharts ? this.charts(sheetId) : []) {
       let col = spec.col;
       let x = (spec.dx ?? 0) + spec.width;
       while (x > 0) {

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
-import { SpreadsheetIcon } from '@/features/cells/components/SpreadsheetIcon';
+import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
 import { useDate } from '@/hooks/useDate';
 import DocsIcon from '@/icons/Docs.svg';
 import SubdocsIcon from '@/icons/Subdocs.svg';

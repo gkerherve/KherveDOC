@@ -60,7 +60,6 @@ export interface ConfigResponse {
   FRONTEND_JS_URL?: string;
   FRONTEND_SILENT_LOGIN_ENABLED?: boolean;
   FRONTEND_THEME?: Theme;
-  KHERVECELL_URL?: string;
   LANGUAGES: [string, string][];
   LANGUAGE_CODE: string;
   MEDIA_BASE_URL?: string;

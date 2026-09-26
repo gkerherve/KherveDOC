@@ -19,7 +19,6 @@ import { useTranslation } from 'react-i18next';
 import { Box, DropdownMenu, DropdownMenuOption, Icon } from '@/components';
 import { useFindReplaceStore } from '@/docs/doc-find-replace/stores/useFindReplaceStore';
 import { useDocStore } from '@/docs/doc-management';
-import { useCellsUrl } from '@/features/cells';
 
 import { StylesModal } from '../../doc-styles/StylesModal';
 import { useDocStyles } from '../../doc-styles/useDocStyles';
@@ -194,7 +193,6 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [editor]);
 
-  const cellsUrl = useCellsUrl();
   const nativeMenusRef = useRef<Menu[]>([]);
   useNativeMenus(nativeMenusRef);
 
@@ -708,13 +706,9 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
               ),
             ]
           : []),
-        ...(cellsUrl
-          ? [
-              option(t('Spreadsheet table…'), () =>
-                run(() => insertSpreadsheetBlock(editor)),
-              ),
-            ]
-          : []),
+        option(t('Spreadsheet table…'), () =>
+          run(() => insertSpreadsheetBlock(editor)),
+        ),
         ...(pageBreakItem
           ? [
               option(t('Page break'), () =>
