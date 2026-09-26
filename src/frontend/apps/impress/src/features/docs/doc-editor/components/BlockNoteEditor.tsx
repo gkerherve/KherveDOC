@@ -3,6 +3,7 @@ import {
   BlockNoteSchema,
   defaultBlockSpecs,
   defaultInlineContentSpecs,
+  defaultStyleSpecs,
   withPageBreak,
 } from '@blocknote/core';
 import { CommentsExtension } from '@blocknote/core/comments';
@@ -28,7 +29,7 @@ import {
 } from '@blocknote/react';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { FindAndReplace } from '@tiptap/extension-find-and-replace';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Awareness } from 'y-protocols/awareness';
@@ -74,6 +75,7 @@ const useAI = BlockNoteAI?.useAI;
 const localesBNAI = BlockNoteAI?.localesAI || {};
 import { createSafeCodeBlockSpec } from './custom-blocks/CodeBlock';
 import { InterlinkingLinkInlineContent } from './custom-inline-content';
+import { customStyleSpecs } from './custom-styles';
 import XLMultiColumn from './xl-multi-column';
 
 const localesBNMultiColumn = XLMultiColumn?.locales;
@@ -95,6 +97,10 @@ const baseBlockNoteSchema = withPageBreak(
       interlinkingLinkInline: InterlinkingLinkInlineContent,
       math: createReactInlineMathSpec(),
     },
+    styleSpecs: {
+      ...defaultStyleSpecs,
+      ...customStyleSpecs,
+    },
   }),
 );
 
@@ -111,9 +117,6 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
   const { setEditor } = useEditorStore();
   const { themeTokens } = useCunninghamTheme();
   const refEditorContainer = useRef<HTMLDivElement>(null);
-  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(
-    null,
-  );
   useSaveDoc(doc.id, provider.document);
 
   const { i18n, t } = useTranslation();
@@ -335,7 +338,6 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
           />
         </Box>
       )}
-      <div ref={setToolbarTarget} className="--docs--kherve-toolbar-slot" />
       <BlockNoteView
         className="--docs--main-editor"
         editor={editor}
@@ -351,7 +353,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
         {aiBlockNoteAllowed && AIMenuController && AIMenu && (
           <AIMenuController aiMenu={AIMenu} />
         )}
-        <KherveToolbar target={toolbarTarget} aiAllowed={aiBlockNoteAllowed} />
+        <KherveToolbar aiAllowed={aiBlockNoteAllowed} />
         <BlockNoteSuggestionMenu aiAllowed={aiBlockNoteAllowed} />
         <BlockNoteToolbar aiAllowed={aiBlockNoteAllowed} />
         <DocsSideMenu />

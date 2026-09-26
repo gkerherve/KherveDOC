@@ -5,6 +5,8 @@ import {
 } from '@blocknote/math-block/odt-exporter';
 import { odtDefaultSchemaMappings } from '@blocknote/xl-odt-exporter';
 
+import { isFontSize } from '@/docs/doc-editor/components/custom-styles';
+
 import {
   blockMappingCalloutODT,
   blockMappingImageODT,
@@ -39,5 +41,16 @@ export const odtDocsSchemaMappings: DocsExporterODT['mappings'] = {
     interlinkingLinkInline: inlineContentMappingInterlinkingLinkODT,
     // Renders inline math as a native (editable) ODF formula object.
     math: inlineMathMapping,
+  },
+  styleMapping: {
+    ...odtDefaultSchemaMappings.styleMapping,
+    fontFamily: (name?: string): Record<string, string> =>
+      name ? { 'fo:font-family': name } : {},
+    fontSize: (size?: string): Record<string, string> =>
+      isFontSize(size) ? { 'fo:font-size': size } : {},
+    superscript: (enabled?: boolean): Record<string, string> =>
+      enabled ? { 'style:text-position': 'super 58%' } : {},
+    subscript: (enabled?: boolean): Record<string, string> =>
+      enabled ? { 'style:text-position': 'sub 58%' } : {},
   },
 };

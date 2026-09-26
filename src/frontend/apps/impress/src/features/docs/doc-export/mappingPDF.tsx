@@ -6,6 +6,11 @@ import {
 import { pdfDefaultSchemaMappings } from '@blocknote/xl-pdf-exporter';
 
 import {
+  fontSizePt,
+  pdfFont,
+} from '@/docs/doc-editor/components/custom-styles';
+
+import {
   blockMappingCalloutPDF,
   blockMappingHeadingPDF,
   blockMappingImagePDF,
@@ -49,5 +54,21 @@ export const pdfDocsSchemaMappings: DocsExporterPDF['mappings'] = {
     // that is not available in italics
     code: (enabled?: boolean) =>
       enabled ? { fontFamily: 'Courier', backgroundColor: '#dcdcdc' } : {},
+    // PDFs only embed the standard fonts, so each family maps to its closest
+    // one (serif, sans or mono).
+    fontFamily: (name?: string) => {
+      if (!name) {
+        return {};
+      }
+      const font = pdfFont(name);
+      return font === 'Helvetica' ? {} : { fontFamily: font };
+    },
+    fontSize: (size?: string) => {
+      const pt = fontSizePt(size);
+      return pt ? { fontSize: pt } : {};
+    },
+    superscript: (enabled?: boolean) =>
+      enabled ? { verticalAlign: 'super' } : {},
+    subscript: (enabled?: boolean) => (enabled ? { verticalAlign: 'sub' } : {}),
   },
 };

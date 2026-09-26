@@ -5,6 +5,8 @@ import {
 } from '@blocknote/math-block/docx-exporter';
 import { docxDefaultSchemaMappings } from '@blocknote/xl-docx-exporter';
 
+import { fontSizePt } from '@/docs/doc-editor/components/custom-styles';
+
 import {
   blockMappingCalloutDocx,
   blockMappingImageDocx,
@@ -71,5 +73,13 @@ export const docxDocsSchemaMappings: DocsExporterDocx['mappings'] = {
             shading: { fill: 'DCDCDC' },
           }
         : {},
+    fontFamily: (name?: string) => (name ? { font: name } : {}),
+    // Word sizes are in half-points.
+    fontSize: (size?: string) => {
+      const pt = fontSizePt(size);
+      return pt ? { size: Math.round(pt * 2) } : {};
+    },
+    superscript: (enabled?: boolean) => (enabled ? { superScript: true } : {}),
+    subscript: (enabled?: boolean) => (enabled ? { subScript: true } : {}),
   },
 };
