@@ -38,6 +38,7 @@ import {
 } from './SheetGrid';
 import { SheetTabs, tabsCss } from './SheetTabs';
 import { SheetToolbar } from './SheetToolbar';
+import { SolverPanel, solverCss } from './SolverPanel';
 
 interface SheetEditorProps {
   provider: HocuspocusProvider;
@@ -76,7 +77,13 @@ export const SheetEditor = ({
   const { t } = useTranslation();
   const { workbook, version } = useSheetWorkbook(provider, !readOnly, synced);
   useStyleElement(
-    gridCss + tabsCss + menuCss + chartCss + chartPanelCss + editorCss,
+    gridCss +
+      tabsCss +
+      menuCss +
+      chartCss +
+      chartPanelCss +
+      solverCss +
+      editorCss,
   );
 
   if (!workbook) {
@@ -123,6 +130,7 @@ const SheetWorkbookView = ({
   const [nameBox, setNameBox] = useState<string | null>(null);
   const [chartId, setChartId] = useState<string | null>(null);
   const [chartPanel, setChartPanel] = useState<string | null>(null);
+  const [solverOpen, setSolverOpen] = useState(false);
   const editorRef = useRef<HTMLInputElement | null>(null);
   const barRef = useRef<HTMLInputElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -659,6 +667,7 @@ const SheetWorkbookView = ({
       ...guess,
     });
     setChartId(id);
+    setSolverOpen(false);
     setChartPanel(id);
   };
 
@@ -804,6 +813,11 @@ const SheetWorkbookView = ({
           onSort={sort}
           onFreeze={toggleFreeze}
           onInsertChart={insertChart}
+          onSolver={() => {
+            setChartPanel(null);
+            setSolverOpen((open) => !open);
+          }}
+          solverOpen={solverOpen}
         />
       )}
       <div className="kc-formula-bar">
@@ -913,10 +927,26 @@ const SheetWorkbookView = ({
                   focusGrid();
                 }
               }}
-              onEdit={setChartPanel}
+              onEdit={(id) => {
+                setSolverOpen(false);
+                setChartPanel(id);
+              }}
             />
           )}
         />
+        {solverOpen && (
+          <SolverPanel
+            workbook={workbook}
+            sheetId={activeId}
+            selectionRef={rangeRef(range)}
+            activeRef={address(focus.row, focus.col)}
+            readOnly={readOnly}
+            onClose={() => {
+              setSolverOpen(false);
+              focusGrid();
+            }}
+          />
+        )}
         {chartPanel && workbook.chart(chartPanel)?.sheetId === activeId && (
           <ChartPanel
             workbook={workbook}

@@ -22,7 +22,10 @@ import {
   DEFAULT_WIDTH,
   FORMATS,
   SHEETS,
+  SOLVER,
   SheetMeta,
+  SolverModel,
+  SolverResult,
   WIDTHS,
   cellKey,
   newSheetId,
@@ -32,6 +35,7 @@ import {
   widthKey,
 } from './layout';
 import { shiftFormula } from './shift';
+import { adjustSolverModel } from './solver';
 import { Axis, StructureChange, adjustFormula, moveIndex } from './structure';
 
 /** Transactions made by this window (undoable by this user). */
@@ -55,6 +59,7 @@ export class SheetWorkbook {
   readonly yFormats: Y.Map<string>;
   readonly yWidths: Y.Map<number>;
   readonly yCharts: Y.Map<string>;
+  readonly ySolver: Y.Map<string>;
   readonly undoManager: Y.UndoManager;
 
   /** Monotonic counter the UI subscribes to. */
@@ -91,6 +96,7 @@ export class SheetWorkbook {
     this.yFormats = ydoc.getMap<string>(FORMATS);
     this.yWidths = ydoc.getMap<number>(WIDTHS);
     this.yCharts = ydoc.getMap<string>(CHARTS);
+    this.ySolver = ydoc.getMap<string>(SOLVER);
     this.undoManager = new Y.UndoManager(
       [this.ySheets, this.yCells, this.yFormats, this.yWidths, this.yCharts],
       { trackedOrigins: new Set([LOCAL_ORIGIN]), captureTimeout: 400 },
@@ -116,8 +122,10 @@ export class SheetWorkbook {
     this.yFormats.observe(onFormats);
     this.yWidths.observe(onWidths);
     this.yCharts.observe(onWidths);
+    this.ySolver.observe(onWidths);
     this.unobserve = [
       () => this.yCharts.unobserve(onWidths),
+      () => this.ySolver.unobserve(onWidths),
       () => this.ySheets.unobserve(onSheets),
       () => this.yCells.unobserve(onCells),
       () => this.yFormats.unobserve(onFormats),
@@ -335,6 +343,28 @@ export class SheetWorkbook {
     this.notify();
   }
 
+  /** The Solver settings saved with a sheet. */
+  solverModel(sheetId: string) {
+    return parseJson<SolverModel>(this.ySolver.get(sheetId));
+  }
+
+  setSolverModel(sheetId: string, model: SolverModel) {
+    this.ydoc.transact(() => {
+      this.ySolver.set(sheetId, JSON.stringify(model));
+    }, 'kherve-cell-solver');
+  }
+
+  /**
+   * Run the Solver in the engine. Nothing changes in the workbook: the
+   * caller keeps the solution (setCells) or not.
+   */
+  async solve(sheetId: string, model: SolverModel) {
+    await this.settled();
+    return this.engine.call<SolverResult>('solve', { sheetId, ...model }, [
+      'scipy',
+    ]);
+  }
+
   // ── Editing ──────────────────────────────────────────────────────
   setCell(sheetId: string, row: number, col: number, source: string) {
     this.setCells([[sheetId, row, col, source]]);
@@ -448,6 +478,7 @@ export class SheetWorkbook {
       for (const chart of this.charts(id)) {
         this.yCharts.delete(chart.id);
       }
+      this.ySolver.delete(id);
     }, LOCAL_ORIGIN);
   }
 
@@ -551,6 +582,13 @@ export class SheetWorkbook {
         if (json !== raw) {
           this.yCharts.set(id, json);
         }
+      }
+      const solver = this.solverModel(sheetId);
+      if (solver) {
+        this.ySolver.set(
+          sheetId,
+          JSON.stringify(adjustSolverModel(solver, meta.name, change)),
+        );
       }
       if (axis === 'col') {
         const widths: [number, number][] = [];

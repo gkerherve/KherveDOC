@@ -28,7 +28,7 @@ interface ChartPanelProps {
 }
 
 /** A text box saved when left or on Enter (not on every key). */
-const Field = ({
+export const Field = ({
   label,
   value,
   placeholder,
@@ -69,7 +69,7 @@ const Field = ({
   );
 };
 
-const Check = ({
+export const Check = ({
   label,
   checked,
   onChange,

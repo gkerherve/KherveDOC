@@ -7,6 +7,7 @@
  * - `formats` — same keys → JSON of KherveSheet's CellFormat.to_dict()
  * - `widths`  — "<sheet id>|<col>" → column width in pixels
  * - `charts`  — chart id → JSON ChartSpec (drawn by matplotlib in the engine)
+ * - `solver`  — sheet id → JSON SolverModel (the sheet's Solver settings)
  */
 
 export const SHEETS = 'sheets';
@@ -14,6 +15,7 @@ export const CELLS = 'cells';
 export const FORMATS = 'formats';
 export const WIDTHS = 'widths';
 export const CHARTS = 'charts';
+export const SOLVER = 'solver';
 
 export const DEFAULT_ROWS = 5000;
 export const DEFAULT_COLS = 50;
@@ -140,6 +142,36 @@ export interface ChartSpec {
   logX?: boolean;
   logY?: boolean;
   trendlines?: ChartTrendline[];
+}
+
+export interface SolverConstraint {
+  cell: string;
+  op: '<=' | '>=' | '=';
+  /** A number or a cell. */
+  value: string;
+}
+
+/** A sheet's Solver settings, as in KherveSheet's Solver dialog. */
+export interface SolverModel {
+  objective: string;
+  goal: 'max' | 'min' | 'value';
+  target?: string;
+  variables: string;
+  constraints: SolverConstraint[];
+  nonNegative: boolean;
+  method: 'GRG Nonlinear' | 'Evolutionary';
+  keepSearching: boolean;
+  /** How long the search may run, in seconds. */
+  seconds: number;
+}
+
+export interface SolverResult {
+  solved?: boolean;
+  cancelled?: boolean;
+  message?: string;
+  objective?: number | null;
+  variables?: [number, number, string][];
+  error?: string;
 }
 
 /** KherveSheet's CellFormat.to_dict() keys (the ones the web edits). */

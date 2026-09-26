@@ -48,6 +48,8 @@ interface SheetToolbarProps {
   onSort: (descending: boolean) => void;
   onFreeze: () => void;
   onInsertChart: () => void;
+  onSolver: () => void;
+  solverOpen: boolean;
 }
 
 const ColorButton = ({
@@ -90,6 +92,8 @@ export const SheetToolbar = ({
   onSort,
   onFreeze,
   onInsertChart,
+  onSolver,
+  solverOpen,
 }: SheetToolbarProps) => {
   const { t } = useTranslation();
   const [target, setTarget] = useState<HTMLElement | null>(null);
@@ -215,6 +219,12 @@ export const SheetToolbar = ({
           icon="insert_chart"
           label={t('Insert chart (from the selected cells)')}
           onClick={onInsertChart}
+        />
+        <ToolbarButton
+          icon="query_stats"
+          label={t('Solver (find the values that give the best result)')}
+          pressed={solverOpen}
+          onClick={onSolver}
         />
       </Box>
     </Box>

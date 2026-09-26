@@ -129,3 +129,103 @@ def render_chart(payload):
         return json.dumps(render(data["spec"], read))
     except Exception as exc:  # a bad range, a matplotlib error…
         return json.dumps({"error": str(exc)})
+
+
+def solve(payload):
+    """Run the Solver on a sheet without changing it.
+
+    payload: {"sheetId", "objective": "B5", "variables": "A1:A3,C1",
+              "goal": "min" | "max" | "value", "target": "12" or "D1",
+              "constraints": [{"cell": "A1", "op": "<=", "value": "5"}…],
+              "nonNegative", "method", "keepSearching", "seconds"}
+    → {"solved", "cancelled", "message", "objective": value,
+       "variables": [[r, c, source]…]} or {"error"}.
+
+    The engine is put back as it was; the caller writes the solution into
+    the shared workbook, so everyone gets it (and it can be undone)."""
+    import time
+
+    from khervesheet.core import solver
+
+    data = json.loads(payload)
+    sheet = _sheet(data["sheetId"])
+
+    def number(text, what):
+        text = str(text if text is not None else "").strip()
+        rc = solver.parse_ref(text)
+        if rc is not None:
+            v = solver.EngineHost(sheet).value(rc)
+            if v is None:
+                raise ValueError(f"{what}: {text} does not hold a number.")
+            return v
+        try:
+            return float(text)
+        except ValueError:
+            raise ValueError(f"{what}: {text or '(empty)'} is not a number "
+                             "or a cell.") from None
+
+    try:
+        objective = solver.parse_ref(data.get("objective", ""))
+        if objective is None:
+            raise ValueError("Choose the objective cell (e.g. B10).")
+        variables = list(dict.fromkeys(
+            solver.parse_range(data.get("variables", ""))))
+        if not variables:
+            raise ValueError("Choose the variable cells (e.g. A1:A3).")
+        goal = data.get("goal") or "min"
+        target = number(data.get("target"), "Target") \
+            if goal == "value" else 0.0
+        constraints = []
+        for con in data.get("constraints") or []:
+            cell = solver.parse_ref(con.get("cell", ""))
+            if cell is None or con.get("op") not in solver.OPERATORS:
+                raise ValueError(f"Constraint {con.get('cell')!r} "
+                                 f"{con.get('op')} {con.get('value')!r} "
+                                 "is not valid.")
+            constraints.append(solver.Constraint(
+                cell, con["op"], number(con.get("value"), "Constraint")))
+        problem = solver.Problem(
+            objective=objective, variables=variables, goal=goal,
+            target=target, constraints=constraints,
+            non_negative=bool(data.get("nonNegative")),
+            method=data.get("method") or "GRG Nonlinear",
+            keep_searching=bool(data.get("keepSearching")))
+    except ValueError as exc:
+        return json.dumps({"error": str(exc)})
+
+    # The browser cannot press Stop inside the engine: a time limit does.
+    deadline = time.monotonic() + float(data.get("seconds") or 30)
+
+    def pump():
+        if time.monotonic() > deadline:
+            raise solver.Cancelled
+
+    host = solver.EngineHost(sheet)
+    original = {rc: sheet.source(*rc) for rc in variables}
+    try:
+        outcome = solver.solve(host, problem, pump)
+        value = None
+        if outcome.x is not None:
+            host.try_values(variables, outcome.x)
+            value = host.value(objective)
+    except Exception as exc:  # a formula error, scipy giving up…
+        outcome, value = None, None
+        error = str(exc)
+    finally:
+        for (r, c), src in original.items():
+            sheet._type(r, c, src)
+        sheet._recalc_from_seeds(variables)
+        _wb.refresh_cross_sheet()
+    if outcome is None:
+        return json.dumps({"error": f"The Solver failed: {error}"})
+    if outcome.x is None:
+        return json.dumps({"solved": False, "cancelled": outcome.cancelled,
+                           "message": outcome.message})
+    return json.dumps({
+        "solved": outcome.success,
+        "cancelled": outcome.cancelled,
+        "message": outcome.message,
+        "objective": value,
+        "variables": [[r, c, f"{x:.15g}"]
+                      for (r, c), x in zip(variables, outcome.x)],
+    })
