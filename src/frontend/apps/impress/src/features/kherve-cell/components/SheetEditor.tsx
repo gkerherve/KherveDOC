@@ -52,6 +52,8 @@ interface SheetEditorProps {
   readOnly: boolean;
   userName: string;
   userColor: string;
+  /** The document's title (the name of a downloaded .xlsx). */
+  title?: string;
 }
 
 type EditMode = 'enter' | 'edit';
@@ -79,6 +81,7 @@ export const SheetEditor = ({
   readOnly,
   userName,
   userColor,
+  title,
 }: SheetEditorProps) => {
   const { t } = useTranslation();
   const { workbook, version } = useSheetWorkbook(provider, !readOnly, synced);
@@ -105,6 +108,7 @@ export const SheetEditor = ({
       readOnly={readOnly}
       userName={userName}
       userColor={userColor}
+      title={title}
       loadingText={t('Starting the calculation engine…')}
     />
   );
@@ -117,6 +121,7 @@ const SheetWorkbookView = ({
   readOnly,
   userName,
   userColor,
+  title,
   loadingText,
 }: SheetEditorProps & {
   workbook: SheetWorkbook;
@@ -138,6 +143,7 @@ const SheetWorkbookView = ({
   const [chartId, setChartId] = useState<string | null>(null);
   const [chartPanel, setChartPanel] = useState<string | null>(null);
   const [solverOpen, setSolverOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const editorRef = useRef<HTMLInputElement | null>(null);
   const barRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -704,6 +710,46 @@ const SheetWorkbookView = ({
     });
   };
 
+  // ── Excel files ──────────────────────────────────────────────────
+  const importXlsx = async (file: File) => {
+    setNotice(t('Reading {{name}}…', { name: file.name }));
+    try {
+      const layout = await workbook.readXlsx(await file.arrayBuffer());
+      if (layout.error) {
+        setNotice(layout.error);
+        return;
+      }
+      const first = workbook.importLayout(layout);
+      if (first) {
+        setSheetId(first);
+        setSelection(START);
+      }
+      setNotice(null);
+    } catch (error) {
+      setNotice(String(error));
+    }
+  };
+
+  const downloadXlsx = async () => {
+    setNotice(t('Preparing the Excel file…'));
+    try {
+      const bytes = await workbook.writeXlsx();
+      const url = URL.createObjectURL(
+        new Blob([bytes], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(title || 'spreadsheet').replace(/[\\/:*?"<>|]/g, '-')}.xlsx`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setNotice(null);
+    } catch (error) {
+      setNotice(String(error));
+    }
+  };
+
   const fill = (source: Range, target: Range) => {
     if (!activeId || readOnly) {
       return;
@@ -838,6 +884,8 @@ const SheetWorkbookView = ({
             setSolverOpen((open) => !open);
           }}
           solverOpen={solverOpen}
+          onImportXlsx={(file) => void importXlsx(file)}
+          onDownloadXlsx={() => void downloadXlsx()}
         />
       )}
       <div className="kc-formula-bar">
@@ -945,6 +993,19 @@ const SheetWorkbookView = ({
         cells={untrusted}
         sheetName={(id) => sheets.find((s) => s.id === id)?.meta.name ?? id}
       />
+      {notice && (
+        <div className="kc-loading-bar" role="status">
+          {notice}
+          <button
+            type="button"
+            className="kc-notice-close"
+            aria-label={t('Close')}
+            onClick={() => setNotice(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {!workbook.calculated && (
         <div className="kc-loading-bar">{loadingText}</div>
       )}
@@ -1122,6 +1183,12 @@ const editorCss = `
     display: flex;
     flex: 1;
     min-height: 0;
+  }
+  .kc-notice-close {
+    margin-left: 8px;
+    border: none;
+    background: none;
+    cursor: pointer;
   }
   .kc-loading, .kc-loading-bar {
     padding: 6px 12px;

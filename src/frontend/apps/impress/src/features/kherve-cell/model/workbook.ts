@@ -27,6 +27,7 @@ import {
   SolverModel,
   SolverResult,
   WIDTHS,
+  XlsxLayout,
   cellKey,
   newSheetId,
   parseCellKey,
@@ -40,6 +41,18 @@ import { Axis, StructureChange, adjustFormula, moveIndex } from './structure';
 
 /** Transactions made by this window (undoable by this user). */
 export const LOCAL_ORIGIN = 'kherve-cell-local';
+
+const toBase64 = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(text);
+};
+
+const fromBase64 = (data: string) =>
+  Uint8Array.from(atob(data), (ch) => ch.charCodeAt(0));
 
 /** =PY sources this user lets run (their SHA-256), kept in the browser. */
 const TRUST_KEY = 'kherve-cell-trusted-python';
@@ -473,6 +486,118 @@ export class SheetWorkbook {
     }
   }
 
+  // ── Excel ──────────────────────────────────────────────────────────
+  /** Read an .xlsx file (in the engine). */
+  async readXlsx(file: ArrayBuffer) {
+    await this.settled();
+    return this.engine.call<XlsxLayout>('read_xlsx', { data: toBase64(file) }, [
+      'pypi:openpyxl',
+    ]);
+  }
+
+  /**
+   * Add the sheets of an Excel file (with their formats, widths, frozen
+   * panes and charts). A still-empty spreadsheet is replaced. Returns the
+   * id of the first sheet added.
+   */
+  importLayout(layout: XlsxLayout): string | undefined {
+    const existing = this.sheets();
+    const empty =
+      existing.length === 1 &&
+      !Array.from(this.yCells.keys()).some((k) =>
+        k.startsWith(`${existing[0].id}|`),
+      ) &&
+      this.charts(existing[0].id).length === 0;
+    const taken = new Set(
+      (empty ? [] : existing).map((s) => s.meta.name.toLowerCase()),
+    );
+    let order = empty
+      ? 0
+      : Math.max(-1, ...existing.map((s) => s.meta.order)) + 1;
+    const ids = new Map<string, string>();
+    this.ydoc.transact(() => {
+      if (empty) {
+        this.removeSheetNow(existing[0].id);
+      }
+      for (const sheet of layout.sheets) {
+        let name = sheet.name;
+        for (let n = 2; taken.has(name.toLowerCase()); n++) {
+          name = `${sheet.name} (${n})`;
+        }
+        taken.add(name.toLowerCase());
+        const id = newSheetId();
+        ids.set(sheet.name.toLowerCase(), id);
+        const meta: SheetMeta = {
+          name,
+          order: order++,
+          rows: sheet.rows,
+          cols: sheet.cols,
+          freezeRows: sheet.freezeRows || undefined,
+          freezeCols: sheet.freezeCols || undefined,
+        };
+        this.ySheets.set(id, JSON.stringify(meta));
+        for (const [row, col, source] of sheet.cells) {
+          this.yCells.set(cellKey(id, row, col), source);
+        }
+        for (const [row, col, format] of sheet.formats) {
+          this.yFormats.set(cellKey(id, row, col), JSON.stringify(format));
+        }
+        for (const [col, width] of sheet.widths) {
+          this.yWidths.set(widthKey(id, col), width);
+        }
+      }
+      for (const { sheet, ...spec } of layout.charts) {
+        const sheetId = ids.get(sheet.toLowerCase());
+        if (sheetId) {
+          this.yCharts.set(newSheetId(), JSON.stringify({ ...spec, sheetId }));
+        }
+      }
+    }, LOCAL_ORIGIN);
+    return ids.values().next().value;
+  }
+
+  /** The workbook as an .xlsx file (formats, widths, frozen panes, charts). */
+  async writeXlsx() {
+    await this.settled();
+    const sheets: Record<
+      string,
+      {
+        formats: [number, number, CellFormat][];
+        widths: [number, number][];
+        freezeRows: number;
+        freezeCols: number;
+      }
+    > = {};
+    for (const { id, meta } of this.sheets()) {
+      sheets[id] = {
+        formats: [],
+        widths: Array.from(this.customWidths(id).entries()),
+        freezeRows: meta.freezeRows ?? 0,
+        freezeCols: meta.freezeCols ?? 0,
+      };
+    }
+    this.yFormats.forEach((raw, key) => {
+      const format = parseJson<CellFormat>(raw);
+      const { sheetId, row, col } = parseCellKey(key);
+      if (format && sheets[sheetId]) {
+        sheets[sheetId].formats.push([row, col, format]);
+      }
+    });
+    const charts: ChartSpec[] = [];
+    this.yCharts.forEach((raw) => {
+      const spec = parseJson<ChartSpec>(raw);
+      if (spec) {
+        charts.push(spec);
+      }
+    });
+    const { data } = await this.engine.call<{ data: string }>(
+      'write_xlsx',
+      { sheets, charts },
+      ['pypi:openpyxl'],
+    );
+    return fromBase64(data);
+  }
+
   /** The charts on a sheet. */
   charts(sheetId: string): { id: string; spec: ChartSpec }[] {
     const list: { id: string; spec: ChartSpec }[] = [];
@@ -638,6 +763,11 @@ export class SheetWorkbook {
     if (this.sheets().length <= 1) {
       return;
     }
+    this.ydoc.transact(() => this.removeSheetNow(id), LOCAL_ORIGIN);
+  }
+
+  /** Remove a sheet and all that is on it (inside a transaction). */
+  private removeSheetNow(id: string) {
     const prefix = `${id}|`;
     this.ydoc.transact(() => {
       this.ySheets.delete(id);

@@ -11,6 +11,8 @@ type Operation =
   | 'solve'
   | 'set_trusted'
   | 'python_outputs'
+  | 'read_xlsx'
+  | 'write_xlsx'
   | 'reset'
   | 'set_cells'
   | 'set_formats'

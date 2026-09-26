@@ -260,3 +260,34 @@ def python_outputs(payload):
             "stdout": [[r, c, t] for (r, c), t in sheet.py_stdout.items()],
         }
     return json.dumps(out)
+
+
+def read_xlsx(payload):
+    """payload: {"data": base64 of an .xlsx file} → the shared layout (see
+    khervesheet.core.xlsx.read_xlsx) or {"error"}."""
+    import base64
+
+    from khervesheet.core.xlsx import read_xlsx as read
+
+    try:
+        return json.dumps(read(base64.b64decode(json.loads(payload)["data"])))
+    except Exception as exc:  # not an Excel file, a damaged one…
+        return json.dumps({"error": f"This file could not be read: {exc}"})
+
+
+def write_xlsx(payload):
+    """payload: {"sheets": {sheet id: {"formats", "widths", "freezeRows",
+    "freezeCols"}}, "charts": [spec…]} → {"data": base64 of the .xlsx}."""
+    import base64
+
+    from khervesheet.core.xlsx import write_xlsx as write
+
+    data = json.loads(payload)
+    layout = {
+        "sheets": {_names[sid]: extra
+                   for sid, extra in (data.get("sheets") or {}).items()
+                   if sid in _names},
+        "charts": [dict(spec, sheet=_names.get(spec.get("sheetId"), ""))
+                   for spec in data.get("charts") or []],
+    }
+    return json.dumps({"data": base64.b64encode(write(_wb, layout)).decode()})

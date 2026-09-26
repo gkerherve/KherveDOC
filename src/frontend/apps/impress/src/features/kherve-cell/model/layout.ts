@@ -144,6 +144,22 @@ export interface ChartSpec {
   trendlines?: ChartTrendline[];
 }
 
+/** An .xlsx file in the shared layout (khervesheet/core/xlsx.py). */
+export interface XlsxLayout {
+  sheets: {
+    name: string;
+    rows: number;
+    cols: number;
+    freezeRows: number;
+    freezeCols: number;
+    cells: [number, number, string][];
+    formats: [number, number, CellFormat][];
+    widths: [number, number][];
+  }[];
+  charts: (Omit<ChartSpec, 'sheetId'> & { sheet: string })[];
+  error?: string;
+}
+
 export interface SolverConstraint {
   cell: string;
   op: '<=' | '>=' | '=';

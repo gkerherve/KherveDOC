@@ -290,3 +290,65 @@ describe('python cells', () => {
     ).toHaveLength(2);
   });
 });
+
+describe('excel import', () => {
+  it('adds the sheets, replacing a still-empty spreadsheet', async () => {
+    const book = new SheetWorkbook(new Y.Doc(), new FakeEngine());
+    await book.start();
+    book.ensureFirstSheet();
+    const first = book.importLayout({
+      sheets: [
+        {
+          name: 'Data',
+          rows: 5000,
+          cols: 50,
+          freezeRows: 1,
+          freezeCols: 0,
+          cells: [
+            [0, 0, 'Month'],
+            [1, 1, '=A1'],
+          ],
+          formats: [[0, 0, { bold: true }]],
+          widths: [[0, 145]],
+        },
+      ],
+      charts: [
+        {
+          sheet: 'Data',
+          row: 1,
+          col: 4,
+          width: 480,
+          height: 300,
+          type: 'Bar',
+          series: [{ ref: 'B2:B4' }],
+        },
+      ],
+    });
+    const sheets = book.sheets();
+    expect(sheets.map((s) => s.meta.name)).toEqual(['Data']);
+    expect(first).toBe(sheets[0].id);
+    expect(book.source(first!, 1, 1)).toBe('=A1');
+    expect(book.format(first!, 0, 0)).toEqual({ bold: true });
+    expect(book.width(first!, 0)).toBe(145);
+    expect(sheets[0].meta.freezeRows).toBe(1);
+    expect(book.charts(first!)).toHaveLength(1);
+
+    // A second import adds sheets; clashing names get a number.
+    book.importLayout({
+      sheets: [{ ...book_sheet('Data') }],
+      charts: [],
+    });
+    expect(book.sheets().map((s) => s.meta.name)).toEqual(['Data', 'Data (2)']);
+  });
+});
+
+const book_sheet = (name: string) => ({
+  name,
+  rows: 10,
+  cols: 5,
+  freezeRows: 0,
+  freezeCols: 0,
+  cells: [[0, 0, 'x']] as [number, number, string][],
+  formats: [],
+  widths: [],
+});

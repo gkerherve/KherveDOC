@@ -52,6 +52,7 @@ export const SheetDocEditor = ({ doc, readOnly }: SheetDocEditorProps) => {
           readOnly={readOnly}
           userName={user?.full_name || user?.email || t('Anonymous')}
           userColor={color}
+          title={doc.title || t('Untitled spreadsheet')}
         />
       ) : (
         <SkeletonEditorCore />
