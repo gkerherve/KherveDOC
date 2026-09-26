@@ -592,6 +592,17 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
           onClick={() => run(() => inlineEquation.onItemClick())}
         />
       )}
+      <ToolbarButton
+        icon="note_add"
+        label={t('Insert footnote')}
+        disabled={!state.canFormat}
+        // No refocus: the new note opens its own text box for typing.
+        onClick={() =>
+          editor.insertInlineContent([
+            { type: 'footnote', props: { text: '' } },
+          ])
+        }
+      />
       <SymbolPicker onPick={insertText} />
       <ToolbarButton
         icon="calendar_today"

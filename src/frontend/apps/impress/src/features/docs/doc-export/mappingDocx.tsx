@@ -19,7 +19,10 @@ import {
   blockMappingToggleListItemDocx,
   blockMappingUploadLoaderDocx,
 } from './blocks-mapping';
-import { inlineContentMappingInterlinkingLinkDocx } from './inline-content-mapping';
+import {
+  inlineContentMappingFootnoteDocx,
+  inlineContentMappingInterlinkingLinkDocx,
+} from './inline-content-mapping';
 import { DocsExporterDocx } from './types';
 
 export const docxDocsSchemaMappings: DocsExporterDocx['mappings'] = {
@@ -71,6 +74,7 @@ export const docxDocsSchemaMappings: DocsExporterDocx['mappings'] = {
   inlineContentMapping: {
     ...docxDefaultSchemaMappings.inlineContentMapping,
     interlinkingLinkInline: inlineContentMappingInterlinkingLinkDocx,
+    footnote: inlineContentMappingFootnoteDocx,
     // Renders inline math as a native (editable) Word equation.
     math: inlineMathMapping,
   },

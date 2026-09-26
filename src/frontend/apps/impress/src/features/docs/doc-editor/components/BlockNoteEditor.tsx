@@ -77,7 +77,12 @@ const localesBNAI = BlockNoteAI?.localesAI || {};
 import { createSafeCodeBlockSpec } from './custom-blocks/CodeBlock';
 import { ParagraphFormattingStyle } from './custom-blocks/ParagraphFormattingStyle';
 import { withParagraphProps } from './custom-blocks/paragraphProps';
-import { InterlinkingLinkInlineContent } from './custom-inline-content';
+import {
+  FootnoteInlineContent,
+  FootnoteStyle,
+  FootnotesList,
+  InterlinkingLinkInlineContent,
+} from './custom-inline-content';
 import { customStyleSpecs } from './custom-styles';
 import XLMultiColumn from './xl-multi-column';
 
@@ -106,6 +111,7 @@ const baseBlockNoteSchema = withPageBreak(
       ...defaultInlineContentSpecs,
       interlinkingLinkInline: InterlinkingLinkInlineContent,
       math: createReactInlineMathSpec(),
+      footnote: FootnoteInlineContent,
     },
     styleSpecs: {
       ...defaultStyleSpecs,
@@ -336,6 +342,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
       <DocsEditorStyle />
       <ParagraphFormattingStyle />
       <DocPageLayout />
+      <FootnoteStyle />
       <DocsCommentsStyle
         canSeeComment={canSeeComment}
         currentUserAvatarUrl={currentUserAvatarUrl}
@@ -380,6 +387,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
             threadsSidebarTarget,
           )}
       </BlockNoteView>
+      <FootnotesList editor={editor} />
     </Box>
   );
 };
@@ -446,6 +454,7 @@ export const BlockNoteReader = ({
       <DocsEditorStyle />
       <ParagraphFormattingStyle />
       <DocPageLayout />
+      <FootnoteStyle />
       <DocsCommentsStyle canSeeComment={false} />
       <BlockNoteView
         className="--docs--main-editor"
@@ -458,6 +467,7 @@ export const BlockNoteReader = ({
       >
         <BlockNoteToolbar aiAllowed={false} />
       </BlockNoteView>
+      <FootnotesList editor={editor} />
     </Box>
   );
 };

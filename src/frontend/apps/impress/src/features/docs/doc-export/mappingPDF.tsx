@@ -21,7 +21,10 @@ import {
   blockMappingTablePDF,
   blockMappingUploadLoaderPDF,
 } from './blocks-mapping';
-import { inlineContentMappingInterlinkingLinkPDF } from './inline-content-mapping';
+import {
+  inlineContentMappingFootnotePDF,
+  inlineContentMappingInterlinkingLinkPDF,
+} from './inline-content-mapping';
 import { pdfTextFormatting } from './paragraphFormatting';
 import { DocsExporterPDF } from './types';
 
@@ -87,6 +90,7 @@ export const pdfDocsSchemaMappings: DocsExporterPDF['mappings'] = {
   inlineContentMapping: {
     ...pdfDefaultSchemaMappings.inlineContentMapping,
     interlinkingLinkInline: inlineContentMappingInterlinkingLinkPDF,
+    footnote: inlineContentMappingFootnotePDF,
     // Inline math is rasterized to an image that flows with the text.
     math: inlineMathMapping,
   },

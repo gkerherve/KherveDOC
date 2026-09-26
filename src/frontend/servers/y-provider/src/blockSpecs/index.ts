@@ -7,6 +7,7 @@ import {
 } from '@blocknote/core';
 
 import { CalloutBlock } from './Callout';
+import { FootnoteInline } from './Footnote';
 import { InterlinkingLinkInline } from './InterlinkingLinkInline';
 import { PdfBlock } from './Pdf';
 import { UploadLoaderBlock } from './UploadLoader';
@@ -33,6 +34,7 @@ export const docsBlockNoteSchema = withPageBreak(
     inlineContentSpecs: {
       ...defaultInlineContentSpecs,
       interlinkingLinkInline: InterlinkingLinkInline,
+      footnote: FootnoteInline,
     },
     styleSpecs: {
       ...defaultStyleSpecs,

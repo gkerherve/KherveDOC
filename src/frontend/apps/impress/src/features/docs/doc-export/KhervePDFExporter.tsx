@@ -6,11 +6,13 @@ import {
   StyleSchema,
 } from '@blocknote/core';
 import { PDFExporter } from '@blocknote/xl-pdf-exporter';
+import { Text, View } from '@react-pdf/renderer';
 import type { Style } from '@react-pdf/types';
-import { ReactElement, cloneElement } from 'react';
+import { Children, ReactElement, ReactNode, cloneElement } from 'react';
 
 import { PageSetup } from '@/docs/doc-editor/page-setup/pageSetup';
 
+import { footnoteRegistry } from './inline-content-mapping/footnotes';
 import {
   pdfPageDecorations,
   pdfPagePadding,
@@ -67,19 +69,50 @@ export class KhervePDFExporter<
     const document = (await this.toReactPDFDocument(blocks, {
       header: pdfPageDecorations(setup),
     })) as ReactElement<{
-      children: ReactElement<{ size?: [number, number]; dpi?: number }>;
+      children: ReactElement<{
+        size?: [number, number];
+        dpi?: number;
+        children?: ReactNode;
+      }>;
     }>;
 
     // BlockNote always renders A4 at dpi 100, which scales every length by
     // 100/72. Use the document's paper size at dpi 72 so that points are
     // real points: 12 pt text, and margins and paper at their true size.
+    const pdfPage = document.props.children;
     return cloneElement(
       document,
       {},
-      cloneElement(document.props.children, {
-        size: pdfPageSize(setup),
-        dpi: 72,
-      }),
+      cloneElement(
+        pdfPage,
+        { size: pdfPageSize(setup), dpi: 72 },
+        ...Children.toArray(pdfPage.props.children),
+        this.notesSection(),
+      ),
+    );
+  }
+
+  /** Footnotes collected while transforming, printed as endnotes. */
+  private notesSection() {
+    const { notes } = footnoteRegistry(this);
+    if (!notes.length) {
+      return null;
+    }
+    return (
+      <View
+        key="kherve-notes"
+        style={{
+          marginTop: 18,
+          paddingTop: 6,
+          borderTop: '0.5pt solid #999999',
+        }}
+      >
+        {notes.map((note, index) => (
+          <Text key={index} style={{ fontSize: 9, marginBottom: 3 }}>
+            {`${index + 1}. ${note}`}
+          </Text>
+        ))}
+      </View>
     );
   }
 }

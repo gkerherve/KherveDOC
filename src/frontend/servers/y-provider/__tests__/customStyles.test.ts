@@ -55,6 +55,24 @@ describe('custom text styles', () => {
     expect(paragraph.props).toMatchObject(props);
   });
 
+  test('keep footnotes', () => {
+    const ydoc = editor.blocksToYDoc(
+      [
+        {
+          type: 'paragraph',
+          content: ['See', { type: 'footnote', props: { text: 'A note' } }],
+        },
+      ],
+      'document-store',
+    );
+    const [paragraph] = editor.yDocToBlocks(ydoc, 'document-store');
+
+    expect(paragraph.content).toEqual([
+      { type: 'text', text: 'See', styles: {} },
+      { type: 'footnote', props: { text: 'A note' } },
+    ]);
+  });
+
   test('render to HTML', async () => {
     const html = await editor.blocksToHTMLLossy(blocks);
 

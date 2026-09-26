@@ -39,6 +39,7 @@ export const screenPageCss = (setup: PageSetup) => {
         margin: 24px auto 64px !important;
         padding: ${px(top)} 0 ${px(bottom)} !important;
         background: var(--c--contextuals--background--surface--primary);
+        --kherve-notes-inline: ${px(left)} ${px(right)};
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 6px 20px rgba(0, 0, 0, 0.06);
       }
       .--docs--doc-editor .--docs--doc-editor-header {

@@ -10,6 +10,7 @@ import i18next from 'i18next';
 import { cloneElement, isValidElement } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { numberFootnotes } from '@/docs/doc-editor/components/custom-inline-content';
 import { readPageSetup } from '@/docs/doc-editor/page-setup/pageSetup';
 import { DocsBlockNoteEditor } from '@/docs/doc-editor/types';
 import { useProviderStore } from '@/docs/doc-management';
@@ -17,6 +18,7 @@ import { Doc } from '@/docs/doc-management/types';
 
 import { KhervePDFExporter } from '../KhervePDFExporter';
 import { exportCorsResolveFileUrl } from '../api/exportResolveFileUrl';
+import { footnoteRegistry } from '../inline-content-mapping/footnotes';
 import { docxDocsSchemaMappings } from '../mappingDocx';
 import { odtDocsSchemaMappings } from '../mappingODT';
 import { pdfDocsSchemaMappings } from '../mappingPDF';
@@ -30,7 +32,8 @@ export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
       return;
     }
 
-    const exportDocument = editor.document;
+    // editor.document is a fresh copy, so stamping footnote numbers is safe.
+    const exportDocument = numberFootnotes(editor.document);
     const pageSetup = readPageSetup(
       useProviderStore.getState().provider?.document,
     );
@@ -84,7 +87,11 @@ export const useExportAGPL = (doc: Doc, editor?: DocsBlockNoteEditor) => {
       });
 
       blobExport = await exporter.toBlob(exportDocument, {
-        documentOptions: { title: documentTitle },
+        documentOptions: {
+          title: documentTitle,
+          // Filled while the blocks are transformed, before the Document is built.
+          footnotes: footnoteRegistry(exporter).docx,
+        },
         sectionOptions: docxSectionOptions(pageSetup),
       });
     } else if (format === 'odt') {
