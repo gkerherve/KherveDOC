@@ -7,18 +7,19 @@ import {
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { KEY_LIST_SEARCH_DOC } from '@/docs/doc-search/api/useSearchDocs';
 
-import { Doc } from '../types';
+import { Doc, DocKind } from '../types';
 
 import { KEY_LIST_DOC } from './useDocs';
 
 type CreateDocParams = {
   title?: string;
+  kind?: DocKind;
 } | void;
 
 export const createDoc = async (params: CreateDocParams): Promise<Doc> => {
   const response = await fetchAPI(`documents/`, {
     method: 'POST',
-    body: JSON.stringify({ title: params?.title }),
+    body: JSON.stringify({ title: params?.title, kind: params?.kind }),
   });
 
   if (!response.ok) {

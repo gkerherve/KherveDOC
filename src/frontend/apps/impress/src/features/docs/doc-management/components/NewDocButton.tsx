@@ -9,12 +9,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Text } from '@/components';
-import { useConfig } from '@/core/config/api/useConfig';
-import {
-  SpreadsheetIcon,
-  useCellsUrl,
-  useCreateSpreadsheet,
-} from '@/features/cells';
+import { SpreadsheetIcon } from '@/features/cells';
 import { useLeftPanelStore } from '@/features/left-panel/stores/useLeftPanelStore';
 import ArrowDownIcon from '@/icons/arrow-drop-down.svg';
 import SubDocIcon from '@/icons/doc-new-subdoc.svg';
@@ -33,10 +28,8 @@ interface NewDocButtonProps {
 export const NewDocButton = ({ onClose }: NewDocButtonProps) => {
   const router = useRouter();
   const { t } = useTranslation();
-  const { currentDoc } = useDocStore();
-  const { data: config } = useConfig();
-  const isDropdownEnabled =
-    config?.CONVERSION_UPLOAD_ENABLED || currentDoc || config?.KHERVECELL_URL;
+  // Always: the menu offers a spreadsheet besides a document.
+  const isDropdownEnabled = true;
 
   return (
     <>
@@ -96,16 +89,6 @@ export function DropdownArrow() {
     },
   });
 
-  const cellsUrl = useCellsUrl();
-  const { mutate: createSpreadsheet } = useCreateSpreadsheet({
-    onSuccess: (id) => {
-      void router.push(`/cells/${id}`);
-      if (isMobile) {
-        closePanel();
-      }
-    },
-  });
-
   const toggleMenu = useCallback(() => {
     setIsMenuOpen((open) => !open);
   }, []);
@@ -127,8 +110,12 @@ export function DropdownArrow() {
       {
         label: t('New spreadsheet'),
         icon: <SpreadsheetIcon />,
-        callback: () => createSpreadsheet(t('Untitled spreadsheet')),
-        isHidden: !cellsUrl,
+        callback: () => {
+          void router.push('/docs/new?kind=sheet');
+          if (isMobile) {
+            closePanel();
+          }
+        },
       },
       {
         label: t('Import a document'),
@@ -143,8 +130,9 @@ export function DropdownArrow() {
       currentDoc,
       createChildDoc,
       isImportEnabled,
-      cellsUrl,
-      createSpreadsheet,
+      router,
+      isMobile,
+      closePanel,
     ],
   );
 

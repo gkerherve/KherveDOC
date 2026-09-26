@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
+import { SpreadsheetIcon } from '@/features/cells/components/SpreadsheetIcon';
 import { useDate } from '@/hooks/useDate';
 import DocsIcon from '@/icons/Docs.svg';
 import SubdocsIcon from '@/icons/Subdocs.svg';
@@ -58,7 +59,13 @@ export const SimpleDocItem = ({
       className="--docs--simple-doc-item"
       aria-label={itemAriaLabel}
     >
-      {isChild ? (
+      {doc.kind === 'sheet' ? (
+        <Icon
+          icon={<SpreadsheetIcon size={isSmallMobile ? 35 : 40} />}
+          $shrink="0"
+          data-testid="doc-sheet-icon"
+        />
+      ) : isChild ? (
         <Icon
           icon={
             <SubdocsIcon

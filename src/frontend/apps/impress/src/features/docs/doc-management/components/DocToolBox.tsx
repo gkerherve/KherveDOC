@@ -110,6 +110,8 @@ const DocToolBoxComponent = ({
   onOpenChange,
   optionsDefault,
 }: DocToolBoxProps) => {
+  // Spreadsheets have no text to present, print, export or diff.
+  const isSheet = doc.kind === 'sheet';
   const { t } = useTranslation();
   const { untitledDocument } = useTrans();
   const treeContext = useTreeContextOrNull<Doc | null>();
@@ -194,7 +196,7 @@ const DocToolBoxComponent = ({
       callback: () => {
         openPresenter(0);
       },
-      isHidden: Boolean(doc.deleted_at) || isMobile || !isCurrentDoc,
+      isHidden: Boolean(doc.deleted_at) || isMobile || !isCurrentDoc || isSheet,
       testId: `docs-actions-present-${doc.id}`,
     },
     {
@@ -205,7 +207,7 @@ const DocToolBoxComponent = ({
       callback: () => {
         setIsModalExportOpen(true);
       },
-      isHidden: !isCurrentDoc,
+      isHidden: !isCurrentDoc || isSheet,
     },
     {
       label: t('Print', {
@@ -215,7 +217,7 @@ const DocToolBoxComponent = ({
       callback: () => {
         printDocumentWithStyles();
       },
-      isHidden: !isCurrentDoc,
+      isHidden: !isCurrentDoc || isSheet,
     },
     { type: 'separator' },
     {
@@ -296,7 +298,8 @@ const DocToolBoxComponent = ({
       callback: () => {
         setIsModalHistoryOpen(true);
       },
-      isHidden: isMobile || !doc.abilities.versions_list || !isCurrentDoc,
+      isHidden:
+        isMobile || !doc.abilities.versions_list || !isCurrentDoc || isSheet,
       showSeparator: true,
     },
     {

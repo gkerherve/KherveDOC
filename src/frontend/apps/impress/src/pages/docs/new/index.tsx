@@ -25,6 +25,7 @@ const Page: NextPageWithLayout = () => {
   const linkReach = searchParams.get('link-reach');
   const linkRole = searchParams.get('link-role');
   const title = searchParams.get('title');
+  const kind = searchParams.get('kind') === 'sheet' ? 'sheet' : undefined;
   const { authenticated } = useAuth();
 
   const { mutateAsync: createDocAsync, data: doc } = useCreateDoc();
@@ -54,6 +55,7 @@ const Page: NextPageWithLayout = () => {
 
     createDocAsync({
       title: title || undefined,
+      kind,
     })
       .then((createdDoc) => {
         if ((linkReach && linkRole) || linkReach) {
@@ -88,6 +90,7 @@ const Page: NextPageWithLayout = () => {
         });
       });
   }, [
+    kind,
     authenticated,
     createDocAsync,
     doc,

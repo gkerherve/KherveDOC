@@ -13,6 +13,7 @@ import {
   useProviderStore,
 } from '@/docs/doc-management';
 import { useAuth } from '@/features/auth/';
+import { SheetDocEditor } from '@/features/kherve-cell';
 import { SkeletonEditorCore, useSkeletonStore } from '@/features/skeletons';
 import { useSkeletonFadeOut } from '@/features/skeletons/hooks/useFadeOut';
 import { useAnalytics } from '@/libs';
@@ -134,6 +135,10 @@ export const DocEditor = ({ doc }: DocEditorProps) => {
       authenticated,
     });
   }, [authenticated, hasTracked, isPublicDoc, trackEvent]);
+
+  if (doc.kind === 'sheet') {
+    return <SheetDocEditor doc={doc} readOnly={readOnly} />;
+  }
 
   return (
     <DocEditorContainer
