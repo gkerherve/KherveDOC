@@ -1,23 +1,23 @@
 import { COLORS_DEFAULT } from '@blocknote/core';
+import { CommentsExtension } from '@blocknote/core/comments';
+import { getMathSlashMenuItems } from '@blocknote/math-block';
 import {
   BlockTypeSelectItem,
   blockTypeSelectItems,
   useBlockNoteEditor,
   useDictionary,
   useEditorState,
+  useExtension,
 } from '@blocknote/react';
-import { ReactNode, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { createGlobalStyle, css } from 'styled-components';
 
-import {
-  Box,
-  DropdownMenu,
-  DropdownMenuOption,
-  Icon,
-  Text,
-} from '@/components';
+import { Box, DropdownMenu, DropdownMenuOption, Icon } from '@/components';
+import { printDocumentWithStyles } from '@/docs/doc-export/utils_print';
+import { useFindReplaceStore } from '@/docs/doc-find-replace/stores/useFindReplaceStore';
+import { useDocStore } from '@/docs/doc-management';
 
 import {
   DocsBlockSchema,
@@ -25,192 +25,105 @@ import {
   DocsStyleSchema,
 } from '../../types';
 import { useDocsSlashMenuItems } from '../BlockNoteSuggestionMenu';
+import {
+  FONT_FAMILIES,
+  FONT_SIZES,
+  fontSizePt,
+  fontStack,
+} from '../custom-styles';
 
-type TextStyle = 'bold' | 'italic' | 'underline' | 'strike' | 'code';
+import { WordCount } from './WordCount';
+import {
+  ColorKind,
+  DropdownTrigger,
+  IS_MAC,
+  MOD,
+  SHIFT,
+  ScrollableMenus,
+  Separator,
+  Swatch,
+  ToolbarButton,
+  TriggerText,
+  rowCss,
+  toolbarCss,
+} from './parts';
+import { SymbolPicker, TableGridPicker } from './pickers';
+import { KHERVE_TOOLBAR_SLOT_ID } from './slot';
+
+const ModalExport = dynamic(
+  () =>
+    import('@/docs/doc-export/components/ModalExport').then((mod) => ({
+      default: mod.ModalExport,
+    })),
+  { ssr: false },
+);
+
+type ToggleStyle =
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'strike'
+  | 'code'
+  | 'superscript'
+  | 'subscript';
 type Alignment = 'left' | 'center' | 'right' | 'justify';
 type ListType = 'bulletListItem' | 'numberedListItem' | 'checkListItem';
-type ColorKind = 'textColor' | 'backgroundColor';
 
-const IS_MAC =
-  typeof navigator !== 'undefined' &&
-  /Mac|iPhone|iPad/.test(navigator.platform);
-const MOD = IS_MAC ? '⌘' : 'Ctrl+';
-const SHIFT = IS_MAC ? '⇧' : 'Shift+';
+const CLEARABLE_STYLES = {
+  bold: true,
+  italic: true,
+  underline: true,
+  strike: true,
+  code: true,
+  superscript: true,
+  subscript: true,
+  textColor: 'default',
+  backgroundColor: 'default',
+  fontFamily: '',
+  fontSize: '',
+} as const;
 
-// react-aria caps the popover to the viewport height; let long menus scroll
-// inside it instead of stretching the page.
-const ScrollableMenus = createGlobalStyle`
-  .--docs--drop-button-popover:has([role='menu']) {
-    overflow-y: auto;
+/** Font size and family actually rendered at the caret, for display. */
+const computedFontAtCaret = (root?: HTMLElement) => {
+  const node = window.getSelection()?.anchorNode;
+  if (!root || !node || !root.contains(node)) {
+    return undefined;
   }
-`;
-
-const toolbarCss = css`
-  position: sticky;
-  top: 0;
-  /* Above BlockNote's selection toolbar (z-index 40) so it never covers us. */
-  z-index: 50;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  margin: 0 0 var(--c--globals--spacings--sm);
-  padding: 4px 6px;
-  border: 1px solid var(--c--contextuals--border--surface--primary);
-  border-radius: 8px;
-  background: var(--c--contextuals--background--surface--primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-`;
-
-const buttonCss = css`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-width: 30px;
-  height: 30px;
-  padding: 0 4px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--c--contextuals--content--semantic--neutral--primary);
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--c--contextuals--background--semantic--neutral--tertiary);
+  const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  if (!(element instanceof Element)) {
+    return undefined;
   }
-  &[aria-pressed='true'] {
-    background: var(--c--contextuals--background--semantic--brand--tertiary);
-    color: var(--c--contextuals--content--semantic--brand--primary);
-  }
-  &:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-  &:focus-visible {
-    outline: 2px solid var(--c--contextuals--border--semantic--brand--primary);
-  }
-`;
-
-const ToolbarButton = ({
-  icon,
-  label,
-  shortcut,
-  pressed,
-  disabled,
-  onClick,
-  children,
-}: {
-  icon: string;
-  label: string;
-  shortcut?: string;
-  pressed?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children?: ReactNode;
-}) => (
-  <Box
-    as="button"
-    type="button"
-    $css={buttonCss}
-    title={shortcut ? `${label} (${shortcut})` : label}
-    aria-label={label}
-    aria-pressed={pressed === undefined ? undefined : pressed}
-    disabled={disabled}
-    // Keep the editor's selection: a toolbar click must not take focus away.
-    onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
-    onClick={onClick}
-  >
-    <Icon iconName={icon} $size="20px" $theme="inherit" />
-    {children}
-  </Box>
-);
-
-const Separator = () => (
-  <Box
-    aria-hidden
-    $css={css`
-      width: 1px;
-      height: 20px;
-      margin: 0 4px;
-      background: var(--c--contextuals--border--surface--primary);
-    `}
-  />
-);
-
-const DropdownTrigger = ({
-  label,
-  children,
-  width,
-}: {
-  label: string;
-  children: ReactNode;
-  width?: string;
-}) => (
-  <Box
-    $direction="row"
-    $align="center"
-    $gap="2px"
-    $height="30px"
-    $padding={{ horizontal: '4px' }}
-    $css={css`
-      ${width ? `width: ${width};` : ''}
-      border-radius: 4px;
-      &:hover {
-        background: var(
-          --c--contextuals--background--semantic--neutral--tertiary
-        );
-      }
-    `}
-    title={label}
-  >
-    {children}
-    <Icon iconName="arrow_drop_down" $size="18px" $theme="inherit" />
-  </Box>
-);
-
-const Swatch = ({ color, kind }: { color: string; kind: ColorKind }) => {
-  const hex =
-    color === 'default'
-      ? undefined
-      : COLORS_DEFAULT[color]?.[kind === 'textColor' ? 'text' : 'background'];
-  return (
-    <Box
-      $width="18px"
-      $height="18px"
-      $align="center"
-      $justify="center"
-      $css={css`
-        border-radius: 3px;
-        border: 1px solid var(--c--contextuals--border--surface--primary);
-        font-weight: 700;
-        font-size: 12px;
-        ${kind === 'backgroundColor' && hex ? `background: ${hex};` : ''}
-        ${kind === 'textColor' && hex ? `color: ${hex};` : ''}
-      `}
-    >
-      A
-    </Box>
-  );
+  const style = window.getComputedStyle(element);
+  const px = parseFloat(style.fontSize);
+  return {
+    sizePt: Math.round(px * 0.75 * 2) / 2,
+    family: style.fontFamily
+      .split(',')[0]
+      ?.trim()
+      .replace(/^['"]|['"]$/g, ''),
+  };
 };
 
-export const KherveToolbar = ({
-  target,
-  aiAllowed,
-}: {
-  target: HTMLElement | null;
-  aiAllowed: boolean;
-}) => {
+export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
   const editor = useBlockNoteEditor<
     DocsBlockSchema,
     DocsInlineContentSchema,
     DocsStyleSchema
   >();
   const dict = useDictionary();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const slashMenuItems = useDocsSlashMenuItems(aiAllowed);
+  const openFindReplace = useFindReplaceStore((state) => state.open);
+  const currentDoc = useDocStore((state) => state.currentDoc);
+  const comments = useExtension('comments') as unknown as
+    ReturnType<ReturnType<typeof CommentsExtension>> | undefined;
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTarget(document.getElementById(KHERVE_TOOLBAR_SLOT_ID));
+  }, []);
 
   const state = useEditorState({
     editor,
@@ -228,9 +141,13 @@ export const KherveToolbar = ({
           underline: !!styles.underline,
           strike: !!styles.strike,
           code: !!styles.code,
+          superscript: !!styles.superscript,
+          subscript: !!styles.subscript,
         },
         textColor: (styles.textColor as string) || 'default',
         backgroundColor: (styles.backgroundColor as string) || 'default',
+        fontFamily: (styles.fontFamily as string) || '',
+        fontSize: (styles.fontSize as string) || '',
         blockType: block.type as string,
         blockProps: props,
         textAlignment: (props.textAlignment as Alignment) ?? 'left',
@@ -238,6 +155,7 @@ export const KherveToolbar = ({
         hasText: Array.isArray(block.content),
         // Tables hold styled text too, just not as a plain inline array.
         canFormat: block.content !== undefined,
+        hasSelection: !!editor.getSelectedText(),
         canNest: editor.canNestBlock(),
         canUnnest: editor.canUnnestBlock(),
         link: editor.getSelectedLinkUrl() ?? '',
@@ -261,20 +179,34 @@ export const KherveToolbar = ({
     });
   }, [dict, editor]);
 
+  // Block equation first, then inline equation (when the schema has them).
+  const [blockEquation, inlineEquation] = useMemo(
+    () => getMathSlashMenuItems(editor),
+    [editor],
+  );
+
+  const slashItem = (predicate: (key: string) => boolean) =>
+    slashMenuItems.find((item) =>
+      predicate(String((item as { key?: string }).key ?? '')),
+    );
+
   if (!target || !state?.editable) {
     return null;
   }
+
+  const caret = computedFontAtCaret(editor.domElement);
 
   const selectedBlocks = () =>
     editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block];
 
   // Act on the editor's stored selection before refocusing: when a menu or the
   // link box had focus, refocusing first lets the browser collapse it. The
-  // second focus runs after a closing dropdown hands focus back to its button.
+  // later focus runs after a closing popover hands focus back to its button,
+  // which react-aria does one frame after unmounting.
   const run = (action: () => void) => {
     action();
     editor.focus();
-    requestAnimationFrame(() => editor.focus());
+    requestAnimationFrame(() => requestAnimationFrame(() => editor.focus()));
   };
 
   const isSelectedType = (item: BlockTypeSelectItem) =>
@@ -311,8 +243,17 @@ export const KherveToolbar = ({
       }),
     );
 
-  const toggleStyle = (style: TextStyle) =>
-    run(() => editor.toggleStyles({ [style]: true }));
+  const toggleStyle = (style: ToggleStyle) =>
+    run(() => {
+      // Superscript and subscript exclude each other, as in word processors.
+      if (style === 'superscript' && !state.styles.superscript) {
+        editor.removeStyles({ subscript: true });
+      }
+      if (style === 'subscript' && !state.styles.subscript) {
+        editor.removeStyles({ superscript: true });
+      }
+      editor.toggleStyles({ [style]: true });
+    });
 
   const setColor = (kind: ColorKind, color: string) =>
     run(() =>
@@ -320,6 +261,88 @@ export const KherveToolbar = ({
         ? editor.removeStyles({ [kind]: 'default' })
         : editor.addStyles({ [kind]: color }),
     );
+
+  const setFontFamily = (name: string) =>
+    run(() =>
+      name
+        ? editor.addStyles({ fontFamily: name })
+        : editor.removeStyles({ fontFamily: '' }),
+    );
+
+  const displayedSizePt = fontSizePt(state.fontSize) ?? caret?.sizePt;
+
+  const setFontSize = (pt?: number) =>
+    run(() =>
+      pt
+        ? editor.addStyles({ fontSize: `${pt}pt` })
+        : editor.removeStyles({ fontSize: '' }),
+    );
+
+  const stepFontSize = (direction: 1 | -1) => {
+    const current = displayedSizePt ?? 12;
+    const next =
+      direction > 0
+        ? FONT_SIZES.find((size) => size > current)
+        : [...FONT_SIZES].reverse().find((size) => size < current);
+    if (next) {
+      setFontSize(next);
+    }
+  };
+
+  const clearFormatting = () =>
+    run(() => editor.removeStyles({ ...CLEARABLE_STYLES }));
+
+  const insertText = (text: string) =>
+    run(() => editor.insertInlineContent(text));
+
+  const insertTable = (rows: number, cols: number) =>
+    run(() => {
+      const cursor = editor.getTextCursorPosition().block;
+      const table = {
+        type: 'table',
+        content: {
+          type: 'tableContent',
+          rows: Array.from({ length: rows }, () => ({
+            cells: Array.from({ length: cols }, () => ''),
+          })),
+        },
+      } as Parameters<typeof editor.insertBlocks>[0][number];
+      const isEmptyParagraph =
+        cursor.type === 'paragraph' &&
+        Array.isArray(cursor.content) &&
+        cursor.content.length === 0;
+      if (isEmptyParagraph) {
+        editor.replaceBlocks([cursor], [table]);
+      } else {
+        editor.insertBlocks([table], cursor, 'after');
+      }
+    });
+
+  const copyOrCut = (command: 'copy' | 'cut') => {
+    editor.focus();
+    document.execCommand(command);
+  };
+
+  const paste = async () => {
+    editor.focus();
+    if (document.execCommand('paste')) {
+      return;
+    }
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        if (item.types.includes('text/html')) {
+          editor.pasteHTML(await (await item.getType('text/html')).text());
+          return;
+        }
+      }
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        editor.pasteText(text);
+      }
+    } catch {
+      // Clipboard access denied: the keyboard shortcut still works.
+    }
+  };
 
   const applyLink = () => {
     const value = (linkDraft ?? '').trim();
@@ -354,6 +377,40 @@ export const KherveToolbar = ({
       callback: () => setColor(kind, color),
     }));
 
+  const fontOptions: DropdownMenuOption[] = [
+    {
+      label: t('Default font'),
+      isSelected: !state.fontFamily,
+      showSeparator: true,
+      callback: () => setFontFamily(''),
+    },
+    ...FONT_FAMILIES.map((font, index) => ({
+      label: font.name,
+      icon: (
+        <Box as="span" $css={`font-family: ${font.stack}; font-size: 15px;`}>
+          Aa
+        </Box>
+      ),
+      isSelected: state.fontFamily === font.name,
+      showSeparator: FONT_FAMILIES[index + 1]?.group !== font.group,
+      callback: () => setFontFamily(font.name),
+    })),
+  ];
+
+  const sizeOptions: DropdownMenuOption[] = [
+    {
+      label: t('Default size'),
+      isSelected: !state.fontSize,
+      showSeparator: true,
+      callback: () => setFontSize(undefined),
+    },
+    ...FONT_SIZES.map((size) => ({
+      label: `${size}`,
+      isSelected: fontSizePt(state.fontSize) === size,
+      callback: () => setFontSize(size),
+    })),
+  ];
+
   const insertOptions: DropdownMenuOption[] = slashMenuItems.map(
     (item, index) => ({
       label: item.title,
@@ -365,11 +422,16 @@ export const KherveToolbar = ({
     }),
   );
 
+  const imageItem = slashItem((key) => key === 'image');
+  const dividerItem = slashItem((key) => key === 'divider');
+  const pageBreakItem = slashItem((key) => key === 'page_break');
+  const canComment = !!comments && !!currentDoc?.abilities.comment;
+
   const styleButtons: {
-    style: TextStyle;
+    style: ToggleStyle;
     icon: string;
     label: string;
-    key: string;
+    key?: string;
   }[] = [
     { style: 'bold', icon: 'format_bold', label: t('Bold'), key: `${MOD}B` },
     {
@@ -390,6 +452,8 @@ export const KherveToolbar = ({
       label: t('Strikethrough'),
       key: `${MOD}${SHIFT}S`,
     },
+    { style: 'superscript', icon: 'superscript', label: t('Superscript') },
+    { style: 'subscript', icon: 'subscript', label: t('Subscript') },
     { style: 'code', icon: 'code', label: t('Inline code'), key: `${MOD}E` },
   ];
 
@@ -414,13 +478,8 @@ export const KherveToolbar = ({
     { type: 'checkListItem', icon: 'checklist', label: t('Checklist') },
   ];
 
-  const toolbar = (
-    <Box
-      role="toolbar"
-      aria-label={t('Formatting')}
-      className="--docs--kherve-toolbar"
-      $css={toolbarCss}
-    >
+  const standardRow = (
+    <Box role="group" aria-label={t('Standard')} $css={rowCss}>
       <ToolbarButton
         icon="undo"
         label={t('Undo')}
@@ -434,7 +493,119 @@ export const KherveToolbar = ({
         onClick={() => run(() => editor.redo())}
       />
       <Separator />
+      <ToolbarButton
+        icon="content_cut"
+        label={t('Cut')}
+        shortcut={`${MOD}X`}
+        disabled={!state.hasSelection}
+        onClick={() => copyOrCut('cut')}
+      />
+      <ToolbarButton
+        icon="content_copy"
+        label={t('Copy')}
+        shortcut={`${MOD}C`}
+        disabled={!state.hasSelection}
+        onClick={() => copyOrCut('copy')}
+      />
+      <ToolbarButton
+        icon="content_paste"
+        label={t('Paste')}
+        shortcut={`${MOD}V`}
+        onClick={() => void paste()}
+      />
+      <ToolbarButton
+        icon="format_clear"
+        label={t('Clear direct formatting')}
+        disabled={!state.canFormat}
+        onClick={clearFormatting}
+      />
+      <Separator />
+      <ToolbarButton
+        icon="search"
+        label={t('Find and replace')}
+        shortcut={`${MOD}F`}
+        onClick={openFindReplace}
+      />
+      <ToolbarButton
+        icon="print"
+        label={t('Print')}
+        shortcut={`${MOD}P`}
+        onClick={printDocumentWithStyles}
+      />
+      {currentDoc && (
+        <ToolbarButton
+          icon="file_download"
+          label={t('Export (PDF, Word, ODT, HTML)')}
+          onClick={() => setIsExportOpen(true)}
+        />
+      )}
+      <Separator />
+      <TableGridPicker onPick={insertTable} />
+      {imageItem && (
+        <ToolbarButton
+          icon="image"
+          label={t('Insert image')}
+          onClick={() => run(() => imageItem.onItemClick())}
+        />
+      )}
+      {blockEquation && (
+        <ToolbarButton
+          icon="functions"
+          label={t('Insert equation')}
+          onClick={() => run(() => blockEquation.onItemClick())}
+        />
+      )}
+      {inlineEquation && (
+        <ToolbarButton
+          icon="calculate"
+          label={t('Insert inline equation')}
+          onClick={() => run(() => inlineEquation.onItemClick())}
+        />
+      )}
+      <SymbolPicker onPick={insertText} />
+      <ToolbarButton
+        icon="calendar_today"
+        label={t('Insert date')}
+        onClick={() =>
+          insertText(new Date().toLocaleDateString(i18n.resolvedLanguage))
+        }
+      />
+      {dividerItem && (
+        <ToolbarButton
+          icon="horizontal_rule"
+          label={t('Horizontal line')}
+          onClick={() => run(() => dividerItem.onItemClick())}
+        />
+      )}
+      {pageBreakItem && (
+        <ToolbarButton
+          icon="insert_page_break"
+          label={t('Page break')}
+          onClick={() => run(() => pageBreakItem.onItemClick())}
+        />
+      )}
+      {canComment && (
+        <ToolbarButton
+          icon="add_comment"
+          label={t('Add comment')}
+          disabled={!state.hasSelection}
+          onClick={() => comments.startPendingComment()}
+        />
+      )}
+      <DropdownMenu label={t('Insert')} options={insertOptions}>
+        <DropdownTrigger label={t('Insert')}>
+          <Icon iconName="add_box" $size="20px" $theme="inherit" />
+          <span>{t('Insert')}</span>
+        </DropdownTrigger>
+      </DropdownMenu>
+      <Box $css="margin-left: auto;">
+        <WordCount />
+      </Box>
+    </Box>
+  );
 
+  const formattingRow = (
+    <Box role="group" aria-label={t('Formatting')} $css={rowCss}>
       <DropdownMenu
         label={t('Paragraph style')}
         options={blockTypes.map((item) => ({
@@ -444,15 +615,50 @@ export const KherveToolbar = ({
         }))}
         disabled={!state.hasText}
       >
-        <DropdownTrigger label={t('Paragraph style')} width="150px">
-          <Text
-            $size="sm"
-            $css="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-          >
-            {currentType?.name ?? t('Paragraph style')}
-          </Text>
+        <DropdownTrigger label={t('Paragraph style')} width="128px">
+          <TriggerText>{currentType?.name ?? t('Paragraph style')}</TriggerText>
         </DropdownTrigger>
       </DropdownMenu>
+      <DropdownMenu
+        label={t('Font name')}
+        options={fontOptions}
+        disabled={!state.canFormat}
+      >
+        <DropdownTrigger label={t('Font name')} width="148px">
+          <TriggerText>
+            <span
+              style={{
+                fontFamily: state.fontFamily
+                  ? fontStack(state.fontFamily)
+                  : undefined,
+              }}
+            >
+              {state.fontFamily || caret?.family || t('Default font')}
+            </span>
+          </TriggerText>
+        </DropdownTrigger>
+      </DropdownMenu>
+      <DropdownMenu
+        label={t('Font size')}
+        options={sizeOptions}
+        disabled={!state.canFormat}
+      >
+        <DropdownTrigger label={t('Font size')} width="54px">
+          <TriggerText>{displayedSizePt ?? '–'}</TriggerText>
+        </DropdownTrigger>
+      </DropdownMenu>
+      <ToolbarButton
+        icon="text_increase"
+        label={t('Increase font size')}
+        disabled={!state.canFormat}
+        onClick={() => stepFontSize(1)}
+      />
+      <ToolbarButton
+        icon="text_decrease"
+        label={t('Decrease font size')}
+        disabled={!state.canFormat}
+        onClick={() => stepFontSize(-1)}
+      />
       <Separator />
 
       {styleButtons.map(({ style, icon, label, key }) => (
@@ -466,6 +672,7 @@ export const KherveToolbar = ({
           onClick={() => toggleStyle(style)}
         />
       ))}
+      <Separator />
 
       <DropdownMenu
         label={dict.color_picker.text_title}
@@ -568,22 +775,29 @@ export const KherveToolbar = ({
         disabled={!state.canNest}
         onClick={() => run(() => editor.nestBlock())}
       />
-      <Separator />
-
-      <DropdownMenu label={t('Insert')} options={insertOptions}>
-        <DropdownTrigger label={t('Insert')}>
-          <Icon iconName="add_box" $size="20px" $theme="inherit" />
-          <Text $size="sm">{t('Insert')}</Text>
-        </DropdownTrigger>
-      </DropdownMenu>
     </Box>
   );
 
-  return createPortal(
+  return (
     <>
-      <ScrollableMenus />
-      {toolbar}
-    </>,
-    target,
+      {createPortal(
+        <>
+          <ScrollableMenus />
+          <Box
+            role="toolbar"
+            aria-label={t('Document toolbar')}
+            className="--docs--kherve-toolbar"
+            $css={toolbarCss}
+          >
+            {standardRow}
+            {formattingRow}
+          </Box>
+        </>,
+        target,
+      )}
+      {isExportOpen && currentDoc && (
+        <ModalExport doc={currentDoc} onClose={() => setIsExportOpen(false)} />
+      )}
+    </>
   );
 };

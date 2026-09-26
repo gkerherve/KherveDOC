@@ -10,6 +10,7 @@ from PySide6.QtWebEngineCore import (
     QWebEngineDownloadRequest,
     QWebEngineLoadingInfo,
     QWebEnginePage,
+    QWebEnginePermission,
     QWebEngineProfile,
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -91,6 +92,23 @@ class PopupPage(QWebEnginePage):
 
 
 class Page(QWebEnginePage):
+    def __init__(self, profile, parent=None):
+        super().__init__(profile, parent)
+        self.permissionRequested.connect(self._on_permission_requested)
+
+    @staticmethod
+    def _on_permission_requested(permission: QWebEnginePermission):
+        # The toolbar's Paste button reads the clipboard; allow that for the
+        # KherveDOC server only and refuse everything else.
+        if (
+            permission.permissionType()
+            == QWebEnginePermission.PermissionType.ClipboardReadWrite
+            and is_server_url(permission.origin())
+        ):
+            permission.grant()
+        else:
+            permission.deny()
+
     def acceptNavigationRequest(self, url, _type, is_main_frame):
         if not is_main_frame:
             return True

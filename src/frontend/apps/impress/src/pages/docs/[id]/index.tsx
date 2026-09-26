@@ -5,9 +5,11 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { css } from 'styled-components';
 
-import { Loading } from '@/components';
+import { Box, Loading } from '@/components';
 import { DEFAULT_QUERY_RETRY } from '@/core';
+import { KHERVE_TOOLBAR_SLOT_ID } from '@/docs/doc-editor/components/KherveToolbar/slot';
 import { DocFloatingBar } from '@/docs/doc-header/components/DocFloatingBar';
 import {
   Doc,
@@ -66,7 +68,20 @@ export function DocLayout() {
         }}
       >
         <MainLayout enableResizablePanel={true}>
-          <DocFloatingBar />
+          {/* Header and the editor toolbar stay pinned while the page scrolls. */}
+          <Box
+            $width="100%"
+            className="--docs--doc-top"
+            $css={css`
+              position: sticky;
+              top: 0;
+              z-index: 45;
+              background: var(--c--contextuals--background--surface--primary);
+            `}
+          >
+            <DocFloatingBar />
+            <div id={KHERVE_TOOLBAR_SLOT_ID} />
+          </Box>
           <DocPage id={id} />
         </MainLayout>
         <PresenterRoot />
