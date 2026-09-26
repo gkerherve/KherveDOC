@@ -52,6 +52,7 @@ interface SheetToolbarProps {
   solverOpen: boolean;
   onImportXlsx: (file: File) => void;
   onDownloadXlsx: () => void;
+  onPrint: () => void;
 }
 
 const ColorButton = ({
@@ -98,6 +99,7 @@ export const SheetToolbar = ({
   solverOpen,
   onImportXlsx,
   onDownloadXlsx,
+  onPrint,
 }: SheetToolbarProps) => {
   const { t } = useTranslation();
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -254,6 +256,11 @@ export const SheetToolbar = ({
           icon="download"
           label={t('Download as Excel (.xlsx)')}
           onClick={onDownloadXlsx}
+        />
+        <ToolbarButton
+          icon="print"
+          label={t('Print (Ctrl+P)')}
+          onClick={onPrint}
         />
       </Box>
     </Box>

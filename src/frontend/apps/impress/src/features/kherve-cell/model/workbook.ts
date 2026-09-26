@@ -21,6 +21,7 @@ import {
   DEFAULT_ROWS,
   DEFAULT_WIDTH,
   FORMATS,
+  ROW_HEIGHT,
   SHEETS,
   SOLVER,
   SheetMeta,
@@ -371,6 +372,44 @@ export class SheetWorkbook {
       }
     });
     return widths;
+  }
+
+  /**
+   * The rows and columns a sheet uses: cells that show something or have
+   * a format, and the cells its charts cover. Undefined when empty.
+   */
+  usedRange(sheetId: string) {
+    let bottom = -1;
+    let right = -1;
+    const take = (row: number, col: number) => {
+      bottom = Math.max(bottom, row);
+      right = Math.max(right, col);
+    };
+    this.texts.get(sheetId)?.forEach((text, key) => {
+      if (text) {
+        const [row, col] = key.split(',').map(Number);
+        take(row, col);
+      }
+    });
+    this.yFormats.forEach((_raw, key) => {
+      const cell = parseCellKey(key);
+      if (cell.sheetId === sheetId) {
+        take(cell.row, cell.col);
+      }
+    });
+    for (const { spec } of this.charts(sheetId)) {
+      let col = spec.col;
+      let x = (spec.dx ?? 0) + spec.width;
+      while (x > 0) {
+        x -= this.width(sheetId, col);
+        col += 1;
+      }
+      take(
+        spec.row + Math.ceil(((spec.dy ?? 0) + spec.height) / ROW_HEIGHT),
+        col - 1,
+      );
+    }
+    return bottom < 0 ? undefined : { top: 0, left: 0, bottom, right };
   }
 
   // ── Python ───────────────────────────────────────────────────────

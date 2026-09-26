@@ -42,6 +42,7 @@ import {
   gridCss,
   selectionRange,
 } from './SheetGrid';
+import { PrintDialog, printCss } from './SheetPrint';
 import { SheetTabs, tabsCss } from './SheetTabs';
 import { SheetToolbar } from './SheetToolbar';
 import { SolverPanel, solverCss } from './SolverPanel';
@@ -93,6 +94,7 @@ export const SheetEditor = ({
       chartPanelCss +
       solverCss +
       pythonCss +
+      printCss +
       editorCss,
   );
 
@@ -144,6 +146,19 @@ const SheetWorkbookView = ({
   const [chartPanel, setChartPanel] = useState<string | null>(null);
   const [solverOpen, setSolverOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
+
+  // Ctrl/Cmd+P prints the spreadsheet, not the page around the grid.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setPrinting(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const editorRef = useRef<HTMLInputElement | null>(null);
   const barRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -886,6 +901,7 @@ const SheetWorkbookView = ({
           solverOpen={solverOpen}
           onImportXlsx={(file) => void importXlsx(file)}
           onDownloadXlsx={() => void downloadXlsx()}
+          onPrint={() => setPrinting(true)}
         />
       )}
       <div className="kc-formula-bar">
@@ -1100,6 +1116,17 @@ const SheetWorkbookView = ({
           />
         )}
       </div>
+      {printing && (
+        <PrintDialog
+          workbook={workbook}
+          sheetId={activeId}
+          selection={range}
+          onClose={() => {
+            setPrinting(false);
+            focusGrid();
+          }}
+        />
+      )}
       {menu && (
         <SheetContextMenu
           x={menu.x}
