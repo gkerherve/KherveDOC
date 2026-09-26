@@ -1,4 +1,10 @@
-"""KherveDOC desktop app: native windows onto a KherveDOC server."""
+"""KherveDOC desktop app.
+
+By default it works on its own, like KherveSheet: documents are ``.kdoc``
+files on this Mac, edited with KherveDOC's editor served by a small local
+server inside the app (see local_mode.py). It can instead open a KherveDOC
+server (File ▸ KherveDOC Server…), as native windows onto that server.
+"""
 
 import os
 import sys
@@ -7,10 +13,14 @@ from pathlib import Path
 import base64
 import binascii
 import json
+import re
+import shutil
+import subprocess
 
 from PySide6.QtCore import (
     QBuffer,
     QByteArray,
+    QEvent,
     QIODevice,
     QMarginsF,
     QSettings,
@@ -54,7 +64,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from khervedoc_desktop import __version__
+from khervedoc_desktop import __version__, local_mode
 from khervedoc_desktop.native_menus import DocumentMenus
 from khervedoc_desktop.native_menus import install_marker as install_native_menu_marker
 
@@ -71,8 +81,28 @@ _windows: list["MainWindow"] = []
 _profile: QWebEngineProfile | None = None
 
 
+DOC_PATH = re.compile(
+    r"^/docs/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/?$")
+
+
+def use_local() -> bool:
+    """Documents on this Mac (the default), not a KherveDOC server."""
+    return (local_mode.server() is not None
+            and QSettings().value("mode", "local", type=str) == "local")
+
+
 def server_url() -> str:
+    if use_local():
+        return local_mode.server().origin
     return QSettings().value("serverUrl", DEFAULT_SERVER, type=str)
+
+
+def doc_id_of(url: QUrl) -> str | None:
+    """The document a window shows, if it is a document page."""
+    if not is_server_url(url):
+        return None
+    match = DOC_PATH.match(url.path())
+    return match.group(1) if match else None
 
 
 def origin_string(url: QUrl) -> str:
@@ -107,6 +137,13 @@ def open_externally(url: QUrl) -> None:
 
 
 def open_window(url: QUrl | None = None) -> "MainWindow":
+    # A document already open in a window: bring that window forward.
+    if url is not None and (doc := doc_id_of(url)):
+        for existing in _windows:
+            if existing.doc_id() == doc:
+                existing.raise_()
+                existing.activateWindow()
+                return existing
     window = MainWindow(url)
     _windows.append(window)
     window.destroyed.connect(lambda: _windows.remove(window))
@@ -199,6 +236,12 @@ class ServerDialog(QDialog):
         local = QPushButton("Use local server")
         local.clicked.connect(lambda: self.url_edit.setText(DEFAULT_SERVER))
         buttons.addButton(local, QDialogButtonBox.ButtonRole.ResetRole)
+        self.on_this_mac = False
+        if local_mode.server() is not None:
+            mac = QPushButton("Documents on this Mac")
+            mac.setToolTip("Work without a server: documents are files on this Mac")
+            mac.clicked.connect(self._use_this_mac)
+            buttons.addButton(mac, QDialogButtonBox.ButtonRole.ResetRole)
         buttons.addButton("Connect", QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.addButton(QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -212,6 +255,11 @@ class ServerDialog(QDialog):
         layout.addWidget(self.error_label)
         layout.addWidget(buttons)
 
+    def _use_this_mac(self):
+        QSettings().setValue("mode", "local")
+        self.on_this_mac = True
+        super().accept()
+
     def accept(self):
         try:
             url = normalise_server_url(self.url_edit.text())
@@ -219,6 +267,7 @@ class ServerDialog(QDialog):
             self.error_label.setText(str(exc))
             return
         QSettings().setValue("serverUrl", url)
+        QSettings().setValue("mode", "server")
         super().accept()
 
 
@@ -240,6 +289,7 @@ class MainWindow(QMainWindow):
         self._asking_for_server = False
 
         self.page.titleChanged.connect(lambda t: self.setWindowTitle(t or APP_NAME))
+        self.page.urlChanged.connect(self._on_url_changed)
         self.page.loadingChanged.connect(self._on_loading_changed)
         self.page.printRequested.connect(self._on_print_requested)
         self.view.printFinished.connect(self._on_print_finished)
@@ -256,11 +306,83 @@ class MainWindow(QMainWindow):
             message = f"Could not reach {origin_string(info.url())} ({info.errorString()})."
             QTimer.singleShot(0, lambda: self.ask_for_server(message))
 
+    # ── Documents on this Mac ────────────────────────────────────────
+    def doc_id(self) -> str | None:
+        return doc_id_of(self.view.url())
+
+    def _local_file(self) -> Path | None:
+        doc = self.doc_id()
+        library = local_mode.library()
+        if doc is None or library is None or not use_local():
+            return None
+        file = library.get(doc)
+        return file.path if file else None
+
+    def _on_url_changed(self, _url: QUrl):
+        path = self._local_file()
+        # macOS shows the file's icon in the title bar (⌘-click: its folder).
+        self.setWindowFilePath(str(path) if path else "")
+        for action in self._file_actions:
+            action.setEnabled(path is not None)
+
+    def new_document(self, kind: str = "doc"):
+        if not use_local():
+            self.view.load(QUrl(server_url() + ("/docs/new/?kind=sheet" if kind == "sheet" else "/docs/new/")))
+            return
+        doc = local_mode.library().create(kind=kind)
+        target = QUrl(local_mode.server().doc_url(doc))
+        if self.doc_id() is None:
+            self.view.load(target)
+        else:
+            open_window(target)
+
+    def open_document(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open", str(local_mode.documents_dir()),
+            "KherveDOC documents (*.kdoc)")
+        if path:
+            open_path(path, self)
+
+    def save_as(self):
+        path = self._local_file()
+        doc = self.doc_id()
+        if path is None or doc is None:
+            return
+        target, _ = QFileDialog.getSaveFileName(
+            self, "Save As", str(path), "KherveDOC documents (*.kdoc)")
+        if not target:
+            return
+        target_path = Path(target)
+        if target_path.suffix.lower() != ".kdoc":
+            target_path = target_path.with_suffix(".kdoc")
+        if target_path.resolve() == path.resolve():
+            return
+        server = local_mode.server()
+        server.call(server.rooms.flush_doc, doc)
+        shutil.copy2(path, target_path)
+        local_mode.library().move(doc, target_path)
+        server.call(server.rooms.relocate, doc)
+        self._on_url_changed(self.view.url())
+
+    def show_in_finder(self):
+        path = self._local_file()
+        if path is None:
+            return
+        if sys.platform == "darwin":
+            subprocess.run(["open", "-R", str(path)], check=False)
+        elif sys.platform.startswith("win"):
+            subprocess.run(["explorer", "/select,", str(path)], check=False)
+        else:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
+
+    def go_home(self):
+        self.view.load(QUrl(server_url() + "/"))
+
     def ask_for_server(self, error: str = ""):
         self._asking_for_server = True
         try:
             if ServerDialog(self, error).exec() == QDialog.DialogCode.Accepted:
-                self.view.load(QUrl(server_url()))
+                self.view.load(QUrl(server_url() + "/"))
         finally:
             self._asking_for_server = False
 
@@ -279,9 +401,22 @@ class MainWindow(QMainWindow):
         Role = QAction.MenuRole
 
         file_menu = bar.addMenu("&File")
+        self._action(file_menu, "New Document", lambda: self.new_document("doc"), "Ctrl+N")
+        self._action(file_menu, "New Spreadsheet", lambda: self.new_document("sheet"))
+        self._action(file_menu, "Open…", self.open_document, "Ctrl+O")
+        self._action(file_menu, "Home", self.go_home, "Ctrl+Shift+H")
+        file_menu.addSeparator()
+        self._file_actions = [
+            self._action(file_menu, "Save As…", self.save_as, "Ctrl+Shift+S"),
+            self._action(file_menu, "Show in Finder" if sys.platform == "darwin"
+                         else "Show in Folder", self.show_in_finder),
+        ]
+        for action in self._file_actions:
+            action.setEnabled(False)
+        file_menu.addSeparator()
         self._action(file_menu, "New Window", lambda: open_window(), "Ctrl+Shift+N")
         self._action(
-            file_menu, "Server Settings…", lambda: self.ask_for_server(),
+            file_menu, "KherveDOC Server…", lambda: self.ask_for_server(),
             "Ctrl+,", Role.PreferencesRole,
         )
         file_menu.addSeparator()
@@ -459,7 +594,8 @@ class MainWindow(QMainWindow):
             "About KherveDOC",
             f"<h3>KherveDOC {__version__}</h3>"
             "<p>Collaborative documents, in real time.</p>"
-            f"<p>Server: {server_url()}</p>"
+            + (f"<p>Documents on this Mac, in {local_mode.documents_dir()}</p>"
+               if use_local() else f"<p>Server: {server_url()}</p>") +
             "<p>Based on <a href='https://github.com/suitenumerique/docs'>Docs</a> "
             "by DINUM and ZenDiS (MIT licence).</p>",
         )
@@ -545,16 +681,74 @@ def _schedule_capture(window: MainWindow, path: str, delay_ms: int):
     window.page.loadFinished.connect(lambda _ok: QTimer.singleShot(delay_ms, capture))
 
 
+def open_path(path: str, parent=None) -> "MainWindow | None":
+    """Open a .kdoc file in a window (the one already showing it, if any)."""
+    library = local_mode.library()
+    if library is None:
+        return None
+    try:
+        doc = library.open_path(Path(path))
+    except Exception as exc:  # not a KherveDOC document, unreadable…
+        QMessageBox.warning(parent, APP_NAME, f"Could not open {path}:\n{exc}")
+        return None
+    if not use_local():
+        QSettings().setValue("mode", "local")
+    target = QUrl(local_mode.server().doc_url(doc))
+    # A window still on the home page can show it.
+    for window in _windows:
+        if window.doc_id() is None and is_server_url(window.view.url()):
+            window.view.load(target)
+            window.raise_()
+            return window
+    return open_window(target)
+
+
+class Application(QApplication):
+    """Opens the files Finder hands over (double-click, drag onto the icon)."""
+
+    def __init__(self, argv):
+        super().__init__(argv)
+        self.pending_files: list[str] = []
+        self.started = False
+
+    def event(self, e):
+        if e.type() == QEvent.Type.FileOpen:
+            path = e.file()
+            if path and local_mode.is_document_file(path):
+                if self.started:
+                    open_path(path)
+                else:
+                    self.pending_files.append(path)
+            return True
+        return super().event(e)
+
+
 def main() -> int:
     global _profile
     QApplication.setApplicationName(APP_NAME)
     QApplication.setOrganizationName("Kherve")
     QApplication.setApplicationVersion(__version__)
-    app = QApplication(sys.argv)
+    app = Application(sys.argv)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
 
+    if local_mode.available():
+        try:
+            local_mode.start()
+        except Exception as exc:  # the app still works with a server
+            QMessageBox.warning(None, APP_NAME,
+                                f"Documents on this Mac are unavailable: {exc}")
+        app.aboutToQuit.connect(local_mode.stop)
+
     _profile = create_profile(app)
-    window = open_window()
+    files = [a for a in sys.argv[1:] if local_mode.is_document_file(a)]
+    app.processEvents()   # Finder's open-file event arrives here
+    files += app.pending_files
+    app.started = True
+    window = None
+    for path in files:
+        window = open_path(path) or window
+    if window is None:
+        window = open_window()
 
     if capture_path := os.environ.get("KHERVEDOC_CAPTURE"):
         _schedule_capture(window, capture_path, int(os.environ.get("KHERVEDOC_CAPTURE_DELAY", "15000")))

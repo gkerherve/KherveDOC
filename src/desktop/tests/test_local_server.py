@@ -1,0 +1,183 @@
+"""The standalone app's local server: documents, content, uploads and the
+live collaboration socket, as the KherveDOC web app uses them."""
+
+import asyncio
+import base64
+import json
+
+import pytest
+from aiohttp import ClientSession
+from pycrdt import Doc, Text, create_sync_message, create_update_message
+
+from khervedoc_desktop.local import hocuspocus as hp
+from khervedoc_desktop.local.server import LocalServer
+from khervedoc_desktop.local.store import DocFile, Library
+
+
+@pytest.fixture
+def server(tmp_path):
+    static = tmp_path / "web"
+    (static / "docs" / "[id]").mkdir(parents=True)
+    (static / "docs" / "[id]" / "index.html").write_text("<p>editor</p>")
+    (static / "index.html").write_text("<p>home</p>")
+    (static / "404.html").write_text("<p>404</p>")
+    library = Library(tmp_path / "data", tmp_path / "Documents")
+    srv = LocalServer(library, static, "5.7.0", port=0)
+    srv.start()
+    yield srv
+    srv.stop()
+
+
+def run(coro):
+    return asyncio.new_event_loop().run_until_complete(coro)
+
+
+def test_documents_and_content(server):
+    async def go():
+        api = server.origin + "/api/v1.0/"
+        async with ClientSession() as s:
+            conf = await (await s.get(api + "config/")).json()
+            assert conf["COLLABORATION_WS_URL"].startswith("ws://127.0.0.1:")
+            assert conf["RELEASE_VERSION"] == "5.7.0" and conf["KHERVE_LOCAL"]
+            me = await (await s.get(api + "users/me/")).json()
+            assert me["id"]
+            r = await s.post(api + "documents/", json={"title": "Plan",
+                                                       "kind": "doc"})
+            assert r.status == 201
+            doc = await r.json()
+            assert doc["abilities"]["partial_update"] is True
+            assert doc["abilities"]["accesses_view"] is False
+            listing = await (await s.get(api + "documents/?page_size=10")).json()
+            assert [d["id"] for d in listing["results"]] == [doc["id"]]
+
+            # Save content as the editor does, then read it back.
+            ydoc = Doc()
+            ydoc.get("document-store", type=Text).insert(0, "hello")
+            payload = base64.b64encode(ydoc.get_update()).decode()
+            r = await s.patch(api + f"documents/{doc['id']}/content/",
+                              json={"content": payload, "websocket": False})
+            assert r.status == 200
+            text = await (await s.get(
+                api + f"documents/{doc['id']}/content/")).text()
+            back = Doc()
+            back.apply_update(base64.b64decode(text))
+            assert str(back.get("document-store", type=Text)) == "hello"
+
+            r = await s.patch(api + f"documents/{doc['id']}/",
+                              json={"title": "Plan B"})
+            assert (await r.json())["title"] == "Plan B"
+
+            # The editor page and an unknown API call.
+            page = await (await s.get(server.doc_url(doc["id"]))).text()
+            assert "editor" in page
+            assert (await s.get(api + "documents/{}/ai-proxy/".format(
+                doc["id"]))).status == 404
+            return doc["id"]
+
+    doc_id = run(go())
+    file = server.library.get(doc_id)
+    assert file.meta()["title"] == "Plan B"
+    assert file.content()
+
+
+def test_upload_and_media(server):
+    doc_id = server.library.create("Pictures")
+
+    async def go():
+        api = server.origin + "/api/v1.0/"
+        async with ClientSession() as s:
+            from aiohttp import FormData
+            form = FormData()
+            form.add_field("file", b"\x89PNG fake", filename="cat.png",
+                           content_type="image/png")
+            r = await s.post(api + f"documents/{doc_id}/attachment-upload/",
+                             data=form)
+            assert r.status == 201
+            url = (await r.json())["file"]
+            assert url.startswith(f"/media/{doc_id}/")
+            m = await s.get(server.origin + url)
+            assert m.status == 200 and m.content_type == "image/png"
+            assert await m.read() == b"\x89PNG fake"
+
+    run(go())
+
+
+def test_live_sync_between_two_editors(server):
+    doc_id = server.library.create("Together")
+
+    async def editor(session, text=None):
+        ws = await session.ws_connect(
+            f"ws://127.0.0.1:{server.port}/collaboration/ws/?room={doc_id}")
+        await ws.send_bytes(hp.auth_message(doc_id))
+        document, kind, rest = hp.parse((await ws.receive()).data)
+        assert kind == hp.AUTH and hp.parse_auth(rest) == (True, "read-write")
+        ydoc = Doc()
+        await ws.send_bytes(hp.frame(doc_id, create_sync_message(ydoc)))
+        return ws, ydoc
+
+    async def go():
+        async with ClientSession() as s:
+            a, adoc = await editor(s)
+            b, bdoc = await editor(s)
+            # A types: B receives the update through the server.
+            text = adoc.get("t", type=Text)
+            updates = []
+            sub = adoc.observe(lambda e: updates.append(e.update))
+            text.insert(0, "shared")
+            await a.send_bytes(hp.frame(doc_id,
+                                        create_update_message(updates[0])))
+            got = None
+            for _ in range(10):
+                msg = await asyncio.wait_for(b.receive(), 5)
+                _doc, kind, rest = hp.parse(msg.data)
+                if kind == hp.SYNC and rest[0] == 2:   # an update
+                    from pycrdt import handle_sync_message
+                    handle_sync_message(rest, bdoc)
+                    got = str(bdoc.get("t", type=Text))
+                    break
+            assert got == "shared"
+            await a.close()
+            await b.close()
+
+    run(go())
+    # Saved to the file when the editors left.
+    saved = Doc()
+    saved.apply_update(server.library.get(doc_id).content())
+    assert str(saved.get("t", type=Text)) == "shared"
+
+
+def test_library_open_copy_and_move(tmp_path):
+    lib = Library(tmp_path / "data", tmp_path / "Documents")
+    doc_id = lib.create("Report")
+    path = lib.get(doc_id).path
+    assert path.name == "Report.kdoc"
+    # A copy of a known file gets its own id.
+    copy = tmp_path / "Copy.kdoc"
+    copy.write_bytes(path.read_bytes())
+    other = lib.open_path(copy)
+    assert other != doc_id and DocFile(copy).meta()["id"] == other
+    # Reopening the same file keeps its id.
+    assert lib.open_path(path) == doc_id
+    moved = tmp_path / "Moved.kdoc"
+    moved.write_bytes(path.read_bytes())
+    lib.move(doc_id, moved)
+    assert lib.get(doc_id).path == moved.resolve()
+    assert {e["id"] for e in lib.entries()} == {doc_id, other}
+
+
+def test_untitled_files_take_their_title(tmp_path):
+    import stat
+    lib = Library(tmp_path / "data", tmp_path / "Documents")
+    doc_id = lib.create()
+    path = lib.get(doc_id).path
+    assert path.name == "Untitled document.kdoc"
+    assert stat.S_IMODE(path.stat().st_mode) & 0o044   # readable, not 0600
+    assert lib.rename_to_title(doc_id, "Budget: 2027") is not None
+    assert lib.get(doc_id).path.name == "Budget- 2027.kdoc"
+    # Once named, the file keeps its name.
+    assert lib.rename_to_title(doc_id, "Other") is None
+    # A file saved elsewhere is never renamed.
+    elsewhere = tmp_path / "Untitled document.kdoc"
+    elsewhere.write_bytes(lib.get(doc_id).path.read_bytes())
+    other = lib.open_path(elsewhere)
+    assert lib.rename_to_title(other, "Moved") is None

@@ -5,6 +5,10 @@ Build command (from src/desktop):
     pyinstaller KherveDOC.spec --noconfirm
 
 Output: dist/KherveDOC/ on Windows, dist/KherveDOC.app on macOS.
+
+Build the web app first (from the repository root, with ``make run`` up):
+    bin/build-desktop-web.sh
+It lands in src/desktop/web, which is bundled so the app works on its own.
 """
 
 import sys
@@ -16,11 +20,19 @@ sys.path.insert(0, str(ROOT))
 from khervedoc_desktop import __version__
 
 PKG = ROOT / "khervedoc_desktop"
+WEB = ROOT / "web"
+if not (WEB / "index.html").is_file():
+    raise SystemExit("No web app in src/desktop/web: run bin/build-desktop-web.sh")
 
 a = Analysis(
     [str(ROOT / "KherveDOC.py")],
     pathex=[str(ROOT)],
-    datas=[(str(PKG / "icon.png"), "khervedoc_desktop")],
+    datas=[
+        (str(PKG / "icon.png"), "khervedoc_desktop"),
+        (str(PKG / "local" / "config_template.json"), "khervedoc_desktop/local"),
+        (str(WEB), "web"),
+    ],
+    hiddenimports=["pycrdt", "aiohttp"],
     excludes=["PyQt5", "PyQt6", "tkinter", "test", "pip", "setuptools"],
 )
 
@@ -73,5 +85,19 @@ if sys.platform == "darwin":
             "LSApplicationCategoryType": "public.app-category.productivity",
             # Lets the app reach an http:// server such as the local Docker setup.
             "NSAppTransportSecurity": {"NSAllowsArbitraryLoads": True},
+            # .kdoc files open in KherveDOC (double-click in Finder).
+            "CFBundleDocumentTypes": [{
+                "CFBundleTypeName": "KherveDOC document",
+                "CFBundleTypeRole": "Editor",
+                "LSHandlerRank": "Owner",
+                "LSItemContentTypes": ["com.kherve.khervedoc.kdoc"],
+                "CFBundleTypeIconFile": "icon.icns",
+            }],
+            "UTExportedTypeDeclarations": [{
+                "UTTypeIdentifier": "com.kherve.khervedoc.kdoc",
+                "UTTypeDescription": "KherveDOC document",
+                "UTTypeConformsTo": ["public.data", "public.zip-archive"],
+                "UTTypeTagSpecification": {"public.filename-extension": ["kdoc"]},
+            }],
         },
     )

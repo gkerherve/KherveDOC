@@ -3,3 +3,4 @@ build/
 dist/
 installer/
 __pycache__/
+web/
