@@ -23,6 +23,10 @@ import { useDocStore } from '@/docs/doc-management';
 import { StylesModal } from '../../doc-styles/StylesModal';
 import { useDocStyles } from '../../doc-styles/useDocStyles';
 import {
+  formattingMarksOn,
+  setFormattingMarks,
+} from '../../formatting-marks/formattingMarks';
+import {
   PRINT_PREVIEW_EVENT,
   printWithPageSetup,
 } from '../../page-setup/PageLayoutStyle';
@@ -60,6 +64,7 @@ import {
   Swatch,
   ToolbarButton,
   TriggerText,
+  pilcrowCss,
   rowCss,
   toolbarCss,
 } from './parts';
@@ -167,9 +172,29 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     setTarget(document.getElementById(KHERVE_TOOLBAR_SLOT_ID));
   }, []);
 
+  // Formatting marks: Ctrl/Cmd+F10 as in LibreOffice, Ctrl/Cmd+Shift+8 as
+  // in Word.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const mod = event.metaKey || event.ctrlKey;
+      const view = editor.prosemirrorView;
+      if (
+        view &&
+        mod &&
+        (event.key === 'F10' || (event.shiftKey && event.code === 'Digit8'))
+      ) {
+        event.preventDefault();
+        setFormattingMarks(view, !formattingMarksOn(view.state));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editor]);
+
   const state = useEditorState({
     editor,
     selector: ({ editor }) => {
+      const formattingMarks = formattingMarksOn(editor.prosemirrorView?.state);
       const styles = editor.getActiveStyles() as Record<string, unknown>;
       const blocks = editor.getSelection()?.blocks ?? [
         editor.getTextCursorPosition().block,
@@ -177,6 +202,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
       const block = blocks[0];
       const props = block.props as Record<string, unknown>;
       return {
+        formattingMarks,
         styles: {
           bold: !!styles.bold,
           italic: !!styles.italic,
@@ -542,6 +568,13 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     { type: 'checkListItem', icon: 'checklist', label: t('Checklist') },
   ];
 
+  const toggleFormattingMarks = () => {
+    const view = editor.prosemirrorView;
+    if (view) {
+      setFormattingMarks(view, !formattingMarksOn(view.state));
+    }
+  };
+
   const selectAll = () =>
     run(() => {
       const view = editor.prosemirrorView;
@@ -605,6 +638,9 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
             }),
           { isSelected: pageSetup.setup.showPage },
         ),
+        option(t('Formatting marks'), toggleFormattingMarks, {
+          isSelected: state.formattingMarks,
+        }),
         option(t('Full screen'), () => {
           if (document.fullscreenElement) {
             void document.exitFullscreen();
@@ -754,6 +790,16 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
         onClick={clearFormatting}
       />
       <Separator />
+      <ToolbarButton
+        label={t('Formatting marks')}
+        shortcut={`${MOD}F10`}
+        pressed={state.formattingMarks}
+        onClick={toggleFormattingMarks}
+      >
+        <Box as="span" aria-hidden $css={pilcrowCss}>
+          ¶
+        </Box>
+      </ToolbarButton>
       <ToolbarButton
         icon="search"
         label={t('Find and replace')}

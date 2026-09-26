@@ -51,6 +51,7 @@ import { useAnalytics } from '@/libs/Analytics';
 
 import { AI_FEATURE_FLAG, DEFAULT_LOCALE } from '../conf';
 import { DocStylesStyle } from '../doc-styles/useDocStyles';
+import { KherveFormattingMarks } from '../formatting-marks/formattingMarks';
 import {
   useHeadings,
   useSaveDoc,
@@ -298,6 +299,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
           KhervePagination.configure({
             getSetup: () => pageSetupRef.current,
           }),
+          KherveFormattingMarks,
         ],
       },
       visualMedia: {

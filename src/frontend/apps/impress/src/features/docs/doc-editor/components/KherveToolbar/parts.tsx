@@ -201,3 +201,13 @@ export const popoverPanelCss = css`
   padding: 8px;
   max-width: 340px;
 `;
+
+/** The ¶ glyph of the formatting-marks button, sized like the icons. */
+export const pilcrowCss = css`
+  display: inline-flex;
+  width: 20px;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 20px;
+`;
