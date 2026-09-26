@@ -270,7 +270,15 @@ def test_shipped_pyodide_and_wheels_come_first(tmp_path):
         srv.stop()
 
 
-def test_deleting_moves_the_file_away(server):
+def test_deleting_moves_the_file_away(server, monkeypatch, tmp_path):
+    # Not the real Trash: a stand-in that just moves the file.
+    import shutil
+
+    from khervedoc_desktop.local import server as server_module
+    trash = tmp_path / "Trash"
+    trash.mkdir()
+    monkeypatch.setattr(server_module, "_move_to_trash",
+                        lambda p: bool(shutil.move(str(p), trash / p.name)))
     doc_id = server.library.create("Old notes")
     path = server.library.get(doc_id).path
 
@@ -282,5 +290,5 @@ def test_deleting_moves_the_file_away(server):
             assert r.status == 404
 
     run(go())
-    assert not path.exists()
+    assert not path.exists() and (trash / path.name).exists()
     assert server.library.get(doc_id) is None
