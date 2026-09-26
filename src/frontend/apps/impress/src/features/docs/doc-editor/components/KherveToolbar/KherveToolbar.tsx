@@ -12,7 +12,7 @@ import {
 import { AllSelection } from '@tiptap/pm/state';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -53,6 +53,7 @@ import { HelpModal, HelpTopic } from './HelpModal';
 import { Menu, MenuBar } from './MenuBar';
 import { ParagraphSpacingControls } from './ParagraphSpacingControls';
 import { WordCount } from './WordCount';
+import { hasNativeMenus, useNativeMenus } from './nativeMenus';
 import {
   ColorKind,
   DropdownTrigger,
@@ -191,6 +192,9 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [editor]);
 
+  const nativeMenusRef = useRef<Menu[]>([]);
+  useNativeMenus(nativeMenusRef);
+
   const state = useEditorState({
     editor,
     selector: ({ editor }) => {
@@ -267,6 +271,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     );
 
   if (!target || !state?.editable) {
+    nativeMenusRef.current = [];
     return null;
   }
 
@@ -593,6 +598,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
 
   const menus: Menu[] = [
     {
+      key: 'file',
       label: t('File'),
       options: [
         option(t('New document'), () => void router.push('/docs/new/'), {
@@ -609,6 +615,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
       ],
     },
     {
+      key: 'edit',
       label: t('Edit'),
       options: [
         option(t('Undo'), () => run(() => editor.undo())),
@@ -627,6 +634,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
       ],
     },
     {
+      key: 'view',
       label: t('View'),
       options: [
         option(
@@ -641,16 +649,21 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
         option(t('Formatting marks'), toggleFormattingMarks, {
           isSelected: state.formattingMarks,
         }),
-        option(t('Full screen'), () => {
-          if (document.fullscreenElement) {
-            void document.exitFullscreen();
-          } else {
-            void document.documentElement.requestFullscreen();
-          }
-        }),
+        option(
+          t('Full screen'),
+          () => {
+            if (document.fullscreenElement) {
+              void document.exitFullscreen();
+            } else {
+              void document.documentElement.requestFullscreen();
+            }
+          },
+          { value: 'fullscreen' },
+        ),
       ],
     },
     {
+      key: 'insert',
       label: t('Insert'),
       options: [
         option(t('Table (3 × 3)'), () => insertTable(3, 3)),
@@ -709,6 +722,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
       ],
     },
     {
+      key: 'format',
       label: t('Format'),
       options: [
         ...styleButtons.map(({ style, label }, index) =>
@@ -732,6 +746,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
       ],
     },
     {
+      key: 'tools',
       label: t('Tools'),
       options: [
         option(t('Find and replace…'), openFindReplace),
@@ -740,13 +755,17 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
       ],
     },
     {
+      key: 'help',
       label: t('Help'),
       options: [
         option(t('Keyboard shortcuts'), () => setHelpTopic('shortcuts')),
-        option(t('About KherveDOC'), () => setHelpTopic('about')),
+        option(t('About KherveDOC'), () => setHelpTopic('about'), {
+          value: 'about',
+        }),
       ],
     },
   ];
+  nativeMenusRef.current = menus;
 
   const standardRow = (
     <Box role="group" aria-label={t('Standard')} $css={rowCss}>
@@ -1113,7 +1132,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
             className="--docs--kherve-toolbar"
             $css={toolbarCss}
           >
-            <MenuBar menus={menus} />
+            {!hasNativeMenus() && <MenuBar menus={menus} />}
             {standardRow}
             {formattingRow}
           </Box>

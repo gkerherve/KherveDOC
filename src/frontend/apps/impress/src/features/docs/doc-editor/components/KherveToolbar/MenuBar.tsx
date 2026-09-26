@@ -3,6 +3,8 @@ import { css } from 'styled-components';
 import { Box, DropdownMenu, DropdownMenuOption } from '@/components';
 
 export interface Menu {
+  /** Language-independent name: file, edit, view, insert, format… */
+  key: string;
   label: string;
   options: DropdownMenuOption[];
 }
@@ -27,7 +29,7 @@ export const MenuBar = ({ menus }: { menus: Menu[] }) => (
     $css="margin-left: -6px;"
   >
     {menus.map((menu) => (
-      <DropdownMenu key={menu.label} label={menu.label} options={menu.options}>
+      <DropdownMenu key={menu.key} label={menu.label} options={menu.options}>
         <Box as="span" $css={menuTriggerCss}>
           {menu.label}
         </Box>

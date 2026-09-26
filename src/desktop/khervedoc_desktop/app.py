@@ -55,6 +55,8 @@ from PySide6.QtWidgets import (
 )
 
 from khervedoc_desktop import __version__
+from khervedoc_desktop.native_menus import DocumentMenus
+from khervedoc_desktop.native_menus import install_marker as install_native_menu_marker
 
 APP_NAME = "KherveDOC"
 DEFAULT_SERVER = "http://localhost:3000"
@@ -277,6 +279,7 @@ class MainWindow(QMainWindow):
         # No shortcuts here: the editor handles its own keys (its undo history
         # in particular), so menu shortcuts would intercept them.
         edit_menu = bar.addMenu("&Edit")
+        native_edit_actions = []
         WebAction = QWebEnginePage.WebAction
         for text, web_action in [
             ("Undo", WebAction.Undo),
@@ -289,9 +292,10 @@ class MainWindow(QMainWindow):
             ("Select All", WebAction.SelectAll),
         ]:
             if text is None:
-                edit_menu.addSeparator()
+                native_edit_actions.append(edit_menu.addSeparator())
             else:
-                self._action(edit_menu, text, lambda _=False, a=web_action: self.page.triggerAction(a))
+                native_edit_actions.append(self._action(
+                    edit_menu, text, lambda _=False, a=web_action: self.page.triggerAction(a)))
 
         view_menu = bar.addMenu("&View")
         self._action(view_menu, "Back", self.view.back, QKeySequence.StandardKey.Back)
@@ -307,6 +311,14 @@ class MainWindow(QMainWindow):
 
         help_menu = bar.addMenu("&Help")
         self._action(help_menu, "About KherveDOC", self._about, role=Role.AboutRole)
+
+        # The open document's File, Edit, View, Insert, Format, Tools and
+        # Help items join these menus (see native_menus.py).
+        self.document_menus = DocumentMenus(
+            self, self.page,
+            {"file": file_menu, "edit": edit_menu, "view": view_menu, "help": help_menu},
+            native_edit_actions,
+        )
 
     def _zoom(self, factor: float):
         self.view.setZoomFactor(max(0.25, min(5.0, self.view.zoomFactor() * factor)))
@@ -491,6 +503,7 @@ def create_profile(parent) -> QWebEngineProfile:
         QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies
     )
     profile.downloadRequested.connect(handle_download)
+    install_native_menu_marker(profile)
     # The print preview shows its PDF in a frame.
     settings = profile.settings()
     settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, True)
