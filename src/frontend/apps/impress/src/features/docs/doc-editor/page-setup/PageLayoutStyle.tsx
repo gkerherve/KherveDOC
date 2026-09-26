@@ -1,15 +1,11 @@
 import { useEffect } from 'react';
-import { createGlobalStyle } from 'styled-components';
 
 import { printDocumentWithStyles } from '@/docs/doc-export/utils_print';
 
 import { printPageCss, screenPageCss } from './pageCss';
 import { PAPER_SIZES, PageSetup } from './pageSetup';
 import { usePageSetup } from './usePageSetup';
-
-export const PageLayoutStyle = createGlobalStyle<{ $setup: PageSetup }>`
-  ${({ $setup }) => screenPageCss($setup)}
-`;
+import { useStyleElement } from './useStyleElement';
 
 declare global {
   interface Window {
@@ -23,6 +19,7 @@ declare global {
   }
 }
 
+export const PRINT_PREVIEW_EVENT = 'kherve:print-preview';
 const PRINT_STYLE_ID = 'kherve-page-setup-print';
 const PRINT_CLEANUP_FALLBACK_MS = 60_000;
 
@@ -50,17 +47,23 @@ export const printWithPageSetup = (setup: PageSetup) => {
 /** Draws the open document as a page, and prints it with Cmd/Ctrl+P. */
 export const DocPageLayout = () => {
   const { setup } = usePageSetup();
+  useStyleElement(screenPageCss(setup));
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'p') {
         event.preventDefault();
-        printWithPageSetup(setup);
+        // The editing toolbar answers with the print preview; without it
+        // (read-only documents) print the page directly.
+        const request = new Event(PRINT_PREVIEW_EVENT, { cancelable: true });
+        if (window.dispatchEvent(request)) {
+          printWithPageSetup(setup);
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [setup]);
 
-  return <PageLayoutStyle $setup={setup} />;
+  return null;
 };

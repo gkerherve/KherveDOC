@@ -4,9 +4,22 @@ import os
 import sys
 from pathlib import Path
 
+import base64
+import binascii
 import json
 
-from PySide6.QtCore import QMarginsF, QSettings, QSizeF, Qt, QTimer, QUrl
+from PySide6.QtCore import (
+    QBuffer,
+    QByteArray,
+    QIODevice,
+    QMarginsF,
+    QSettings,
+    QSize,
+    QSizeF,
+    Qt,
+    QTimer,
+    QUrl,
+)
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
@@ -14,7 +27,9 @@ from PySide6.QtGui import (
     QKeySequence,
     QPageLayout,
     QPageSize,
+    QPainter,
 )
+from PySide6.QtPdf import QPdfDocument
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWebEngineCore import (
     QWebEngineDownloadRequest,
@@ -22,6 +37,7 @@ from PySide6.QtWebEngineCore import (
     QWebEnginePage,
     QWebEnginePermission,
     QWebEngineProfile,
+    QWebEngineSettings,
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
@@ -44,6 +60,8 @@ APP_NAME = "KherveDOC"
 DEFAULT_SERVER = "http://localhost:3000"
 ICON_PATH = Path(__file__).with_name("icon.png")
 NET_ERR_ABORTED = -3
+# Resolution the print preview's PDF pages are rasterised at for printing.
+PRINT_DPI = 300
 
 _windows: list["MainWindow"] = []
 _profile: QWebEngineProfile | None = None
@@ -297,22 +315,101 @@ class MainWindow(QMainWindow):
         self.showNormal() if self.isFullScreen() else self.showFullScreen()
 
     def _on_print_requested(self):
-        # The page records its page setup before calling window.print().
+        # The page records its page setup (and, from the print preview, the
+        # exact PDF to print) before calling window.print().
         self.page.runJavaScript(
-            "JSON.stringify(window.__khervePageSetup || null)",
+            """(() => {
+                const request = {
+                    setup: window.__khervePageSetup || null,
+                    pdf: window.__khervePrintPdf || null,
+                };
+                window.__khervePrintPdf = undefined;
+                return JSON.stringify(request);
+            })()""",
             0,
-            self._print_with_page_setup,
+            self._handle_print_request,
         )
+
+    def _handle_print_request(self, raw):
+        try:
+            request = json.loads(raw) if isinstance(raw, str) else {}
+        except ValueError:
+            request = {}
+        pdf = request.get("pdf") if isinstance(request, dict) else None
+        if isinstance(pdf, str) and pdf:
+            try:
+                self._print_pdf(base64.b64decode(pdf, validate=True))
+            except (binascii.Error, ValueError):
+                pass
+            return
+        setup = request.get("setup") if isinstance(request, dict) else None
+        self._print_with_page_setup(json.dumps(setup))
 
     def _print_with_page_setup(self, raw):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         layout = page_layout_from_json(raw)
         if layout is not None:
-            printer.setPageLayout(layout)
+            apply_page_layout(printer, layout)
         if QPrintDialog(printer, self).exec() != QDialog.DialogCode.Accepted:
             return
         self._printer = printer
         self.view.print(printer)
+
+    def _print_pdf(self, data: bytes):
+        """Prints the print preview's PDF page by page, as shown."""
+        document = QPdfDocument(self)
+        buffer = QBuffer(self)
+        buffer.setData(QByteArray(data))
+        buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+        document.load(buffer)
+        if document.pageCount() == 0:
+            return
+
+        first = document.pagePointSize(0)
+        landscape = first.width() > first.height()
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setFullPage(True)
+        apply_page_layout(
+            printer,
+            QPageLayout(
+                # Paper sizes are given portrait; orientation turns them.
+                QPageSize(
+                    QSizeF(
+                        min(first.width(), first.height()),
+                        max(first.width(), first.height()),
+                    ),
+                    QPageSize.Unit.Point,
+                ),
+                QPageLayout.Orientation.Landscape
+                if landscape
+                else QPageLayout.Orientation.Portrait,
+                QMarginsF(0, 0, 0, 0),
+            )
+        )
+        printer.setDocName(self.windowTitle())
+        if QPrintDialog(printer, self).exec() != QDialog.DialogCode.Accepted:
+            return
+
+        painter = QPainter(printer)
+        try:
+            for index in range(document.pageCount()):
+                if index:
+                    printer.newPage()
+                points = document.pagePointSize(index)
+                image = document.render(
+                    index,
+                    QSize(
+                        round(points.width() * PRINT_DPI / 72),
+                        round(points.height() * PRINT_DPI / 72),
+                    ),
+                )
+                painter.drawImage(
+                    printer.paperRect(QPrinter.Unit.DevicePixel), image
+                )
+        finally:
+            painter.end()
+            document.deleteLater()
+            buffer.deleteLater()
 
     def _on_print_finished(self, _ok: bool):
         self._printer = None
@@ -339,6 +436,15 @@ class MainWindow(QMainWindow):
             "<p>Based on <a href='https://github.com/suitenumerique/docs'>Docs</a> "
             "by DINUM and ZenDiS (MIT licence).</p>",
         )
+
+
+def apply_page_layout(printer: QPrinter, layout: QPageLayout) -> None:
+    """Some printer drivers refuse a whole layout but take its parts."""
+    if printer.setPageLayout(layout):
+        return
+    printer.setPageSize(layout.pageSize())
+    printer.setPageOrientation(layout.orientation())
+    printer.setPageMargins(layout.margins(), layout.units())
 
 
 def page_layout_from_json(raw) -> QPageLayout | None:
@@ -385,6 +491,10 @@ def create_profile(parent) -> QWebEngineProfile:
         QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies
     )
     profile.downloadRequested.connect(handle_download)
+    # The print preview shows its PDF in a frame.
+    settings = profile.settings()
+    settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, True)
+    settings.setAttribute(QWebEngineSettings.WebAttribute.PdfViewerEnabled, True)
     return profile
 
 

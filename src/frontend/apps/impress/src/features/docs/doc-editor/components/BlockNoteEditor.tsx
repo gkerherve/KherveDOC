@@ -60,6 +60,8 @@ import {
   useUploadStatus,
 } from '../hook';
 import { DocPageLayout } from '../page-setup/PageLayoutStyle';
+import { KhervePagination, refreshPagination } from '../page-setup/pagination';
+import { usePageSetup } from '../page-setup/usePageSetup';
 import { useEditorStore } from '../stores';
 import { DocsEditorStyle } from '../styles';
 import { DocsBlockNoteEditor } from '../types';
@@ -134,6 +136,8 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
   const { setEditor } = useEditorStore();
   const { themeTokens } = useCunninghamTheme();
   const refEditorContainer = useRef<HTMLDivElement>(null);
+  const { setup: pageSetup } = usePageSetup();
+  const pageSetupRef = useRef(pageSetup);
   useSaveDoc(doc.id, provider.document);
 
   const { i18n, t } = useTranslation();
@@ -291,6 +295,9 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
           FindAndReplace.configure({
             injectCSS: false,
           }),
+          KhervePagination.configure({
+            getSetup: () => pageSetupRef.current,
+          }),
         ],
       },
       visualMedia: {
@@ -329,6 +336,11 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
   useUploadStatus(editor);
 
   useScrollToBlockAnchor();
+
+  useEffect(() => {
+    pageSetupRef.current = pageSetup;
+    refreshPagination(editor.prosemirrorView);
+  }, [editor, pageSetup]);
 
   useEffect(() => {
     setEditor(editor);

@@ -9,7 +9,9 @@ import {
   useEditorState,
   useExtension,
 } from '@blocknote/react';
+import { AllSelection } from '@tiptap/pm/state';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +22,10 @@ import { useDocStore } from '@/docs/doc-management';
 
 import { StylesModal } from '../../doc-styles/StylesModal';
 import { useDocStyles } from '../../doc-styles/useDocStyles';
-import { printWithPageSetup } from '../../page-setup/PageLayoutStyle';
+import {
+  PRINT_PREVIEW_EVENT,
+  printWithPageSetup,
+} from '../../page-setup/PageLayoutStyle';
 import { PageSetupModal } from '../../page-setup/PageSetupModal';
 import { usePageSetup } from '../../page-setup/usePageSetup';
 import {
@@ -40,6 +45,8 @@ import {
   fontStack,
 } from '../custom-styles';
 
+import { HelpModal, HelpTopic } from './HelpModal';
+import { Menu, MenuBar } from './MenuBar';
 import { ParagraphSpacingControls } from './ParagraphSpacingControls';
 import { WordCount } from './WordCount';
 import {
@@ -58,6 +65,14 @@ import {
 } from './parts';
 import { SymbolPicker, TableGridPicker } from './pickers';
 import { KHERVE_TOOLBAR_SLOT_ID } from './slot';
+
+const PrintPreviewModal = dynamic(
+  () =>
+    import('@/docs/doc-export/components/PrintPreviewModal').then((mod) => ({
+      default: mod.PrintPreviewModal,
+    })),
+  { ssr: false },
+);
 
 const ModalExport = dynamic(
   () =>
@@ -132,6 +147,20 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
   const pageSetup = usePageSetup();
   const docStyles = useDocStyles();
   const [isStylesOpen, setIsStylesOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
+  const router = useRouter();
+
+  // Cmd/Ctrl+P (see DocPageLayout) opens the print preview when editing.
+  useEffect(() => {
+    const onPrintRequest = (event: Event) => {
+      event.preventDefault();
+      setIsPrintPreviewOpen(true);
+    };
+    window.addEventListener(PRINT_PREVIEW_EVENT, onPrintRequest);
+    return () =>
+      window.removeEventListener(PRINT_PREVIEW_EVENT, onPrintRequest);
+  }, []);
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -513,6 +542,176 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     { type: 'checkListItem', icon: 'checklist', label: t('Checklist') },
   ];
 
+  const selectAll = () =>
+    run(() => {
+      const view = editor.prosemirrorView;
+      if (view) {
+        view.dispatch(
+          view.state.tr.setSelection(new AllSelection(view.state.doc)),
+        );
+      }
+    });
+
+  const option = (
+    label: string,
+    callback: () => void,
+    extra: Partial<DropdownMenuOption> = {},
+  ): DropdownMenuOption => ({ label, callback, ...extra });
+
+  const menus: Menu[] = [
+    {
+      label: t('File'),
+      options: [
+        option(t('New document'), () => void router.push('/docs/new/'), {
+          showSeparator: true,
+        }),
+        option(t('Page setup…'), () => setIsPageSetupOpen(true)),
+        option(t('Print preview…'), () => setIsPrintPreviewOpen(true)),
+        option(t('Print…'), () => setIsPrintPreviewOpen(true), {
+          showSeparator: true,
+        }),
+        option(t('Export (PDF, Word, ODT, HTML)…'), () =>
+          setIsExportOpen(true),
+        ),
+      ],
+    },
+    {
+      label: t('Edit'),
+      options: [
+        option(t('Undo'), () => run(() => editor.undo())),
+        option(t('Redo'), () => run(() => editor.redo()), {
+          showSeparator: true,
+        }),
+        option(t('Cut'), () => copyOrCut('cut'), {
+          disabled: !state.hasSelection,
+        }),
+        option(t('Copy'), () => copyOrCut('copy'), {
+          disabled: !state.hasSelection,
+        }),
+        option(t('Paste'), () => void paste()),
+        option(t('Select all'), selectAll, { showSeparator: true }),
+        option(t('Find and replace…'), openFindReplace),
+      ],
+    },
+    {
+      label: t('View'),
+      options: [
+        option(
+          t('Page view'),
+          () =>
+            pageSetup.save({
+              ...pageSetup.setup,
+              showPage: !pageSetup.setup.showPage,
+            }),
+          { isSelected: pageSetup.setup.showPage },
+        ),
+        option(t('Full screen'), () => {
+          if (document.fullscreenElement) {
+            void document.exitFullscreen();
+          } else {
+            void document.documentElement.requestFullscreen();
+          }
+        }),
+      ],
+    },
+    {
+      label: t('Insert'),
+      options: [
+        option(t('Table (3 × 3)'), () => insertTable(3, 3)),
+        ...(imageItem
+          ? [option(t('Image'), () => run(() => imageItem.onItemClick()))]
+          : []),
+        ...(blockEquation
+          ? [
+              option(t('Equation'), () =>
+                run(() => blockEquation.onItemClick()),
+              ),
+            ]
+          : []),
+        ...(inlineEquation
+          ? [
+              option(t('Inline equation'), () =>
+                run(() => inlineEquation.onItemClick()),
+              ),
+            ]
+          : []),
+        option(
+          t('Footnote'),
+          () =>
+            editor.insertInlineContent([
+              { type: 'footnote', props: { text: '' } },
+            ]),
+          { disabled: !state.canFormat },
+        ),
+        option(t('Link…'), () => setLinkDraft(state.link || 'https://'), {
+          disabled: !state.canFormat,
+        }),
+        option(t('Date'), () =>
+          insertText(new Date().toLocaleDateString(i18n.resolvedLanguage)),
+        ),
+        ...(dividerItem
+          ? [
+              option(t('Horizontal line'), () =>
+                run(() => dividerItem.onItemClick()),
+              ),
+            ]
+          : []),
+        ...(pageBreakItem
+          ? [
+              option(t('Page break'), () =>
+                run(() => pageBreakItem.onItemClick()),
+              ),
+            ]
+          : []),
+        ...(canComment
+          ? [
+              option(t('Comment'), () => comments.startPendingComment(), {
+                disabled: !state.hasSelection,
+              }),
+            ]
+          : []),
+      ],
+    },
+    {
+      label: t('Format'),
+      options: [
+        ...styleButtons.map(({ style, label }, index) =>
+          option(label, () => toggleStyle(style), {
+            isSelected: state.styles[style],
+            disabled: !state.canFormat,
+            showSeparator: index === styleButtons.length - 1,
+          }),
+        ),
+        ...alignButtons.map(({ value, label }, index) =>
+          option(label, () => setAlignment(value), {
+            isSelected: state.hasAlignment && state.textAlignment === value,
+            disabled: !state.hasAlignment,
+            showSeparator: index === alignButtons.length - 1,
+          }),
+        ),
+        option(t('Paragraph styles…'), () => setIsStylesOpen(true)),
+        option(t('Clear direct formatting'), clearFormatting, {
+          disabled: !state.canFormat,
+        }),
+      ],
+    },
+    {
+      label: t('Tools'),
+      options: [
+        option(t('Find and replace…'), openFindReplace),
+        option(t('Paragraph styles…'), () => setIsStylesOpen(true)),
+        option(t('Page setup…'), () => setIsPageSetupOpen(true)),
+      ],
+    },
+    {
+      label: t('Help'),
+      options: [
+        option(t('Keyboard shortcuts'), () => setHelpTopic('shortcuts')),
+        option(t('About KherveDOC'), () => setHelpTopic('about')),
+      ],
+    },
+  ];
+
   const standardRow = (
     <Box role="group" aria-label={t('Standard')} $css={rowCss}>
       <ToolbarButton
@@ -565,7 +764,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
         icon="print"
         label={t('Print')}
         shortcut={`${MOD}P`}
-        onClick={() => printWithPageSetup(pageSetup.setup)}
+        onClick={() => setIsPrintPreviewOpen(true)}
       />
       <ToolbarButton
         icon="description"
@@ -868,11 +1067,22 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
             className="--docs--kherve-toolbar"
             $css={toolbarCss}
           >
+            <MenuBar menus={menus} />
             {standardRow}
             {formattingRow}
           </Box>
         </>,
         target,
+      )}
+      {isPrintPreviewOpen && currentDoc && (
+        <PrintPreviewModal
+          doc={currentDoc}
+          onClose={() => setIsPrintPreviewOpen(false)}
+          onFallbackPrint={() => printWithPageSetup(pageSetup.setup)}
+        />
+      )}
+      {helpTopic && (
+        <HelpModal topic={helpTopic} onClose={() => setHelpTopic(null)} />
       )}
       {isStylesOpen && (
         <StylesModal

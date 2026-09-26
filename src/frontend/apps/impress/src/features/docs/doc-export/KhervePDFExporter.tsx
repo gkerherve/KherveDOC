@@ -31,6 +31,8 @@ export class KhervePDFExporter<
 > extends PDFExporter<B, S, I> {
   /** Body line height moved from the page onto each block (see below). */
   private blockLineHeight?: number;
+  /** A unitless lineHeight resolves against the font size where it is set. */
+  private blockFontSize?: number;
 
   protected blocknoteDefaultPropsToReactPDFStyle(
     props: Partial<DefaultProps>,
@@ -38,6 +40,7 @@ export class KhervePDFExporter<
     return {
       ...super.blocknoteDefaultPropsToReactPDFStyle(props),
       ...(this.blockLineHeight !== undefined && {
+        fontSize: this.blockFontSize,
         lineHeight: this.blockLineHeight,
       }),
       ...pdfParagraphFormatting(props),
@@ -57,6 +60,8 @@ export class KhervePDFExporter<
     } = this.styles.page;
     if (typeof lineHeight === 'number') {
       this.blockLineHeight = lineHeight;
+      this.blockFontSize =
+        typeof page.fontSize === 'number' ? page.fontSize : undefined;
     }
     this.styles = {
       ...this.styles,

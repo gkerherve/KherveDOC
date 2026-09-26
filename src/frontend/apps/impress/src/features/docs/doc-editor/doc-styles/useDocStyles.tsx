@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { createGlobalStyle } from 'styled-components';
 
 import { useProviderStore } from '@/docs/doc-management';
 
 import { SETTINGS_MAP } from '../page-setup/pageSetup';
+import { useStyleElement } from '../page-setup/useStyleElement';
 
 import {
   DocStyles,
@@ -40,12 +40,9 @@ export const useDocStyles = () => {
   return { styles, save };
 };
 
-const DocStylesGlobalStyle = createGlobalStyle<{ $css: string }>`
-  ${({ $css }) => $css}
-`;
-
 /** Applies the document's paragraph styles in the editor. */
 export const DocStylesStyle = () => {
   const { styles } = useDocStyles();
-  return <DocStylesGlobalStyle $css={docStylesCss(styles)} />;
+  useStyleElement(docStylesCss(styles));
+  return null;
 };

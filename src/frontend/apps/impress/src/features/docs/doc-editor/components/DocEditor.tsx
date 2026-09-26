@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { PropsWithChildren, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { css } from 'styled-components';
 
 import { Box } from '@/components';
@@ -20,6 +21,7 @@ import { useResponsiveStore } from '@/stores';
 import { useCollaboration } from '../hook/useCollaboration';
 
 import { BlockNoteEditor, BlockNoteReader } from './BlockNoteEditor';
+import { KHERVE_TITLE_SLOT_ID } from './KherveToolbar/slot';
 
 const DOCS_EDITOR_CLASS = '--docs--doc-editor';
 
@@ -36,6 +38,11 @@ export const DocEditorContainer = ({
   readOnly,
 }: PropsWithChildren<DocEditorContainerProps>) => {
   const { isDesktop } = useResponsiveStore();
+  const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTitleSlot(document.getElementById(KHERVE_TITLE_SLOT_ID));
+  }, []);
 
   return (
     <>
@@ -46,12 +53,17 @@ export const DocEditorContainer = ({
         className={DOCS_EDITOR_CLASS}
         $margin={{ horizontal: 'auto' }}
       >
-        <Box
-          $padding={{ horizontal: isDesktop ? '54px' : 'base' }}
-          className="--docs--doc-editor-header"
-        >
-          {docHeader}
-        </Box>
+        {titleSlot ? (
+          // The title belongs to the window's top bar, not to the page.
+          createPortal(docHeader, titleSlot)
+        ) : (
+          <Box
+            $padding={{ horizontal: isDesktop ? '54px' : 'base' }}
+            className="--docs--doc-editor-header"
+          >
+            {docHeader}
+          </Box>
+        )}
 
         <Box
           $direction="row"
