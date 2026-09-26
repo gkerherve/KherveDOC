@@ -33,7 +33,7 @@ export const SpreadsheetList = () => {
           </Text>
           <Button
             color="brand"
-            disabled={isPending || error instanceof CellsAuthError}
+            disabled={isPending}
             onClick={() => create(t('Untitled spreadsheet'))}
           >
             {t('New spreadsheet')}

@@ -42,12 +42,59 @@ interface GristWorkspace {
   docs: GristDoc[];
 }
 
-export const cellsFetch = async <T>(
-  base: string,
-  path: string,
-  init: RequestInit = {},
-): Promise<T> => {
-  const response = await fetch(`${base.replace(/\/$/, '')}${path}`, {
+const SIGN_IN_TIMEOUT_MS = 20000;
+let signingIn: Promise<boolean> | null = null;
+
+/**
+ * Signs in to KherveCELL without leaving the page: KherveCELL's sign-in
+ * runs in a hidden frame and, since the user already has a Keycloak session
+ * from KherveDOC, completes through redirects alone. Resolves whether a
+ * KherveCELL session now exists.
+ */
+export const signInToCellsSilently = (base: string): Promise<boolean> => {
+  if (typeof document === 'undefined') {
+    return Promise.resolve(false);
+  }
+  signingIn ??= new Promise<boolean>((resolve) => {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.tabIndex = -1;
+    frame.style.cssText =
+      'position:absolute;width:0;height:0;border:0;visibility:hidden';
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      frame.remove();
+      signingIn = null;
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), SIGN_IN_TIMEOUT_MS);
+    // Every hop of the sign-in loads the frame again; check after each.
+    frame.addEventListener('load', () => {
+      void fetch(`${base.replace(/\/$/, '')}/api/session/access/active`, {
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((session: { user?: { anonymous?: boolean } } | null) => {
+          if (session?.user && !session.user.anonymous) {
+            finish(true);
+          }
+        })
+        .catch(() => undefined);
+    });
+    frame.src = `${base.replace(/\/$/, '')}/login?next=%2F`;
+    document.body.appendChild(frame);
+  });
+  return signingIn;
+};
+
+const request = (base: string, path: string, init: RequestInit) =>
+  fetch(`${base.replace(/\/$/, '')}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
@@ -56,6 +103,19 @@ export const cellsFetch = async <T>(
       ...init.headers,
     },
   });
+
+export const cellsFetch = async <T>(
+  base: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> => {
+  let response = await request(base, path, init);
+  if (
+    (response.status === 401 || response.status === 403) &&
+    (await signInToCellsSilently(base))
+  ) {
+    response = await request(base, path, init);
+  }
   if (response.status === 401 || response.status === 403) {
     throw new CellsAuthError();
   }
@@ -65,10 +125,35 @@ export const cellsFetch = async <T>(
   return (await response.json()) as T;
 };
 
-const workspaces = (base: string) =>
-  cellsFetch<GristWorkspace[]>(base, '/api/orgs/current/workspaces').then(
-    (list) => list.filter((workspace) => !workspace.isSupportWorkspace),
+const hasCellsUser = async (base: string) => {
+  const response = await request(base, '/api/session/access/active', {});
+  if (!response.ok) {
+    return false;
+  }
+  const session = (await response.json()) as {
+    user?: { anonymous?: boolean };
+  };
+  return !!session.user && !session.user.anonymous;
+};
+
+/**
+ * KherveCELL answers signed-out visitors as an anonymous user (an empty
+ * list, nowhere to create) rather than refusing them, so check first.
+ */
+export const ensureCellsUser = async (base: string) => {
+  if (!(await hasCellsUser(base)) && !(await signInToCellsSilently(base))) {
+    throw new CellsAuthError();
+  }
+};
+
+const workspaces = async (base: string) => {
+  await ensureCellsUser(base);
+  const list = await cellsFetch<GristWorkspace[]>(
+    base,
+    '/api/orgs/current/workspaces',
   );
+  return list.filter((workspace) => !workspace.isSupportWorkspace);
+};
 
 export const listSpreadsheets = async (base: string) => {
   const sheets: Spreadsheet[] = (await workspaces(base)).flatMap((workspace) =>

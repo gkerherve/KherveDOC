@@ -1,4 +1,6 @@
+import { VariantType, useToastProvider } from '@gouvfr-lasuite/ui-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 
 import { useConfig } from '@/core/config/api/useConfig';
 
@@ -38,11 +40,26 @@ export const useCreateSpreadsheet = ({
 } = {}) => {
   const base = useCellsUrl();
   const queryClient = useQueryClient();
+  const { toast } = useToastProvider();
+  const { t } = useTranslation();
   return useMutation({
     mutationFn: (name: string) => createSpreadsheet(base as string, name),
     onSuccess: (id) => {
       void queryClient.invalidateQueries({ queryKey: [KEY_SPREADSHEETS] });
       onSuccess?.(id);
+    },
+    onError: (error) => {
+      toast(
+        error instanceof CellsAuthError
+          ? t(
+              'Could not sign in to KherveCELL. Open Spreadsheets and choose "Connect KherveCELL".',
+            )
+          : t(
+              'Could not create the spreadsheet: KherveCELL could not be reached.',
+            ),
+        VariantType.ERROR,
+        { duration: 6000 },
+      );
     },
   });
 };

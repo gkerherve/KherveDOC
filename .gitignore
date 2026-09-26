@@ -90,3 +90,7 @@ AGENTS.md
 .aider*
 .copilot/
 .github/copilot-instructions.md
+
+# Crash dumps from the dev containers (e.g. next-server)
+/src/frontend/apps/impress/core
+core.[0-9]*
