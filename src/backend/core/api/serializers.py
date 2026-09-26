@@ -102,6 +102,7 @@ class ListDocumentSerializer(serializers.ModelSerializer):
             "depth",
             "excerpt",
             "is_favorite",
+            "kind",
             "link_role",
             "link_reach",
             "nb_accesses_ancestors",
@@ -125,6 +126,7 @@ class ListDocumentSerializer(serializers.ModelSerializer):
             "depth",
             "excerpt",
             "is_favorite",
+            "kind",
             "link_role",
             "link_reach",
             "nb_accesses_ancestors",
@@ -201,6 +203,7 @@ class DocumentSerializer(ListDocumentSerializer):
             "excerpt",
             "file",
             "is_favorite",
+            "kind",
             "link_role",
             "link_reach",
             "nb_accesses_ancestors",
@@ -224,6 +227,7 @@ class DocumentSerializer(ListDocumentSerializer):
             "deleted_at",
             "depth",
             "is_favorite",
+            "kind",
             "link_role",
             "link_reach",
             "nb_accesses_ancestors",
@@ -242,6 +246,8 @@ class DocumentSerializer(ListDocumentSerializer):
         if request:
             if request.method == "POST":
                 fields["id"].read_only = False
+                # A document is a text or a spreadsheet from its creation.
+                fields["kind"].read_only = False
 
         return fields
 

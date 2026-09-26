@@ -932,10 +932,23 @@ class DocumentManager(MP_NodeManager.from_queryset(DocumentQuerySet)):
 
 
 # pylint: disable=too-many-public-methods
+class DocumentKind(models.TextChoices):
+    """What a document holds: text (BlockNote) or a spreadsheet (KherveCELL)."""
+
+    DOCUMENT = "doc", _("Document")
+    SPREADSHEET = "sheet", _("Spreadsheet")
+
+
 class Document(MP_Node, BaseModel):
     """Pad document carrying the content."""
 
     title = models.CharField(_("title"), max_length=255, null=True, blank=True)
+    kind = models.CharField(
+        _("kind"),
+        max_length=10,
+        choices=DocumentKind.choices,
+        default=DocumentKind.DOCUMENT,
+    )
     excerpt = models.TextField(_("excerpt"), max_length=300, null=True, blank=True)
     link_reach = models.CharField(
         max_length=20,
@@ -1387,7 +1400,8 @@ class Document(MP_Node, BaseModel):
         ) and not is_deleted
 
         ai_allow_reach_from = settings.AI_ALLOW_REACH_FROM
-        ai_access = any(
+        # The AI helpers work on text documents only.
+        ai_access = self.kind == DocumentKind.DOCUMENT and any(
             [
                 ai_allow_reach_from == LinkReachChoices.PUBLIC and can_update,
                 ai_allow_reach_from == LinkReachChoices.AUTHENTICATED

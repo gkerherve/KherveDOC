@@ -1403,6 +1403,7 @@ class DocumentViewSet(
                 content=base64_yjs_content,
                 attachments=attachments,
                 duplicated_from=document_to_duplicate,
+                kind=document_to_duplicate.kind,
                 creator=user,
                 **link_kwargs,
             )
@@ -1435,6 +1436,7 @@ class DocumentViewSet(
                 content=base64_yjs_content,
                 attachments=attachments,
                 duplicated_from=document_to_duplicate,
+                kind=document_to_duplicate.kind,
                 **link_kwargs,
             )
             models.DocumentAccess.objects.create(
@@ -1449,6 +1451,7 @@ class DocumentViewSet(
                 content=base64_yjs_content,
                 attachments=attachments,
                 duplicated_from=document_to_duplicate,
+                kind=document_to_duplicate.kind,
                 creator=user,
                 **link_kwargs,
             )
