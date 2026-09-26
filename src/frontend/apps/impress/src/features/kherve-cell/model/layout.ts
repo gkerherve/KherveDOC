@@ -67,6 +67,56 @@ export interface ChartSeries {
   color?: string;
 }
 
+/** The trendline models of khervesheet/core/fitting.py. */
+export const FIT_MODELS = [
+  'Linear',
+  'Polynomial',
+  'Exponential',
+  'Exponential Decay',
+  'Double Exponential',
+  'Stretched Exponential',
+  'Logarithmic',
+  'Power',
+  'Allometric (Power + c)',
+  'Square Root',
+  'Inverse (1/x)',
+  'Hyperbolic (ax/(b+x))',
+  'Reciprocal Quadratic',
+  'Logistic (Sigmoid)',
+  'Boltzmann Sigmoid',
+  'Gaussian',
+  'Lorentzian',
+  'Sine Wave',
+  'Hill Equation',
+  'Michaelis-Menten',
+  'Error Function (erf)',
+  'Moving Average',
+] as const;
+
+export interface ChartTrendline {
+  /** Index of the fitted series. */
+  series: number;
+  model: string;
+  polyOrder?: number;
+  maPeriod?: number;
+  color?: string;
+  showEquation?: boolean;
+  showR2?: boolean;
+  /** Extend the curve beyond the data (forecast), in X units. */
+  forward?: number;
+  backward?: number;
+}
+
+/** What a trendline's fit found. */
+export interface ChartFit {
+  model?: string;
+  equation?: string;
+  params?: Record<string, number | null>;
+  errors?: Record<string, number | null>;
+  gof?: Record<string, number | null>;
+  error?: string;
+}
+
 /** A chart, as khervesheet/core/charts.py draws it. */
 export interface ChartSpec {
   /** The sheet the chart sits on; ranges without a sheet name are there. */
@@ -89,6 +139,7 @@ export interface ChartSpec {
   grid?: boolean;
   logX?: boolean;
   logY?: boolean;
+  trendlines?: ChartTrendline[];
 }
 
 /** KherveSheet's CellFormat.to_dict() keys (the ones the web edits). */

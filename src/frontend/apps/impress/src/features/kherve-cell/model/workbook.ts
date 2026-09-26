@@ -15,6 +15,7 @@ import {
   CELLS,
   CHARTS,
   CellFormat,
+  ChartFit,
   ChartSpec,
   DEFAULT_COLS,
   DEFAULT_ROWS,
@@ -69,6 +70,7 @@ export class SheetWorkbook {
   private texts = new Map<string, Map<string, string>>();
   private known = new Map<string, SheetMeta>(); // sheets the engine knows
   private numberFormats = new Map<string, string | null>();
+  private fits = new Map<string, ChartFit[]>();
   private listeners = new Set<Listener>();
   private pending = {
     sheets: new Set<string>(),
@@ -312,11 +314,25 @@ export class SheetWorkbook {
    */
   async renderChart(spec: ChartSpec) {
     await this.settled();
-    return this.engine.call<{ svg?: string; error?: string }>(
+    return this.engine.call<{
+      svg?: string;
+      fits?: ChartFit[];
+      error?: string;
+    }>(
       'render_chart',
       { sheetId: spec.sheetId, spec },
-      ['matplotlib'],
+      spec.trendlines?.length ? ['matplotlib', 'scipy'] : ['matplotlib'],
     );
+  }
+
+  /** What the trendlines of a chart found when it was last drawn. */
+  chartFits(id: string) {
+    return this.fits.get(id) ?? [];
+  }
+
+  setChartFits(id: string, fits: ChartFit[]) {
+    this.fits.set(id, fits);
+    this.notify();
   }
 
   // ── Editing ──────────────────────────────────────────────────────

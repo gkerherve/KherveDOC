@@ -113,10 +113,11 @@ def remove_sheet(payload):
 
 
 def render_chart(payload):
-    """payload: {"sheetId", "spec"} → {"svg"} or {"error"}.
+    """payload: {"sheetId", "spec"} → {"svg", "fits"} or {"error"}.
 
-    Ranges without a sheet name are on the chart's own sheet."""
-    from khervesheet.core.charts import render_svg
+    Ranges without a sheet name are on the chart's own sheet; "fits" holds
+    what each trendline's fit found (equation, parameters, R²…)."""
+    from khervesheet.core.charts import render_chart as render
 
     data = json.loads(payload)
     name = _names.get(data.get("sheetId"))
@@ -125,6 +126,6 @@ def render_chart(payload):
         return _wb.range_values(ref, name)
 
     try:
-        return json.dumps({"svg": render_svg(data["spec"], read)})
+        return json.dumps(render(data["spec"], read))
     except Exception as exc:  # a bad range, a matplotlib error…
         return json.dumps({"error": str(exc)})

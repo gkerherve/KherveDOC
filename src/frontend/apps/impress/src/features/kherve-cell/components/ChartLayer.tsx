@@ -159,6 +159,7 @@ const ChartBox = ({
             }
             imageUrl.current = url;
             setImage(url);
+            workbook.setChartFits(id, result.fits ?? []);
             setProblem(null);
           } else {
             setProblem(result.error ?? t('The chart could not be drawn.'));
@@ -179,7 +180,7 @@ const ChartBox = ({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [workbook, key, dataVersion, t]);
+  }, [workbook, id, key, dataVersion, t]);
 
   const startGesture = (event: ReactMouseEvent, kind: Gesture['kind']) => {
     if (event.button !== 0) {
