@@ -181,3 +181,36 @@ def test_untitled_files_take_their_title(tmp_path):
     elsewhere.write_bytes(lib.get(doc_id).path.read_bytes())
     other = lib.open_path(elsewhere)
     assert lib.rename_to_title(other, "Moved") is None
+
+
+def test_pyodide_is_kept_on_this_computer(server, tmp_path):
+    cache = server.pyodide_dir
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / "pyodide.js").write_text("// cached")
+
+    async def go():
+        async with ClientSession() as s:
+            base = server.origin + "/kherve-cell/pyodide/"
+            r = await s.head(base + "pyodide.js")
+            assert r.status == 200 and "javascript" in r.content_type
+            assert (await (await s.get(base + "pyodide.js")).text()) == "// cached"
+            assert (await s.get(base + "..%2Fsecret")).status == 404
+
+    run(go())
+
+
+def test_media_addresses_are_rewritten():
+    from pycrdt import XmlElement, XmlFragment
+
+    from khervedoc_desktop.sharing import LOCAL_MEDIA, media_urls, rewrite_media
+    doc = Doc()
+    frag = doc.get("document-store", type=XmlFragment)
+    local = "http://127.0.0.1:38471/media/de4bd815-85e1-492a-a675-7388766936f2/" \
+            "0123456789abcdef01234567.png"
+    frag.children.append(XmlElement("blockGroup"))
+    frag.children[0].children.append(XmlElement("image", {"url": local}))
+    state = doc.get_update()
+    assert media_urls(state) == [local]
+    assert LOCAL_MEDIA.match(local)["key"] == "0123456789abcdef01234567.png"
+    new = rewrite_media(state, {local: "https://kd.example/api/x"})
+    assert media_urls(new) == ["https://kd.example/api/x"]

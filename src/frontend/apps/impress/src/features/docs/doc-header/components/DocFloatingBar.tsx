@@ -2,6 +2,7 @@ import { css } from 'styled-components';
 
 import { Box } from '@/components';
 import { CardFloatingBar, FloatingBar } from '@/components/FloatingBar';
+import { useIsLocalApp } from '@/core/config/api/useConfig';
 import { KHERVE_TITLE_SLOT_ID } from '@/docs/doc-editor/components/KherveToolbar/slot';
 import { FindReplace } from '@/docs/doc-find-replace/components/FindReplace';
 import { useFindReplaceStore } from '@/docs/doc-find-replace/stores/useFindReplaceStore';
@@ -16,6 +17,8 @@ export const DocFloatingBar = () => {
   const currentDoc = useDocStore((state) => state.currentDoc);
   const isDeletedDoc = !!currentDoc?.deleted_at;
   const isFindReplaceOpen = useFindReplaceStore((state) => state.isOpen);
+  // In the desktop app on its own, a document is a file: nothing to share.
+  const isLocalApp = useIsLocalApp();
 
   return (
     <FloatingBar>
@@ -50,7 +53,9 @@ export const DocFloatingBar = () => {
         <FindReplace />
       ) : (
         <Box $direction="row" $align="center" $gap="2xs">
-          {!isDeletedDoc && currentDoc && <DocShareButton doc={currentDoc} />}
+          {!isDeletedDoc && currentDoc && !isLocalApp && (
+            <DocShareButton doc={currentDoc} />
+          )}
           <CardFloatingBar>
             <RightPanelCollapseButton />
             {!isDeletedDoc && currentDoc && (

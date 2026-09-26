@@ -64,7 +64,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from khervedoc_desktop import __version__, local_mode
+from khervedoc_desktop import __version__, local_mode, sharing
 from khervedoc_desktop.native_menus import DocumentMenus
 from khervedoc_desktop.native_menus import install_marker as install_native_menu_marker
 
@@ -324,6 +324,9 @@ class MainWindow(QMainWindow):
         self.setWindowFilePath(str(path) if path else "")
         for action in self._file_actions:
             action.setEnabled(path is not None)
+        if hasattr(self, "_copy_action"):
+            self._copy_action.setEnabled(
+                self._server_doc() is not None and local_mode.library() is not None)
 
     def new_document(self, kind: str = "doc"):
         if not use_local():
@@ -375,6 +378,63 @@ class MainWindow(QMainWindow):
         else:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
+    def _server_doc(self) -> tuple[str, str] | None:
+        """(server origin, document id) when the window shows a document on
+        a KherveDOC server (not one on this computer)."""
+        url = self.view.url()
+        match = DOC_PATH.match(url.path())
+        if not match or doc_id_of(url) is not None:
+            return None
+        return origin_string(url), match.group(1)
+
+    def share_on_server(self):
+        doc = self.doc_id()
+        if doc is None or self._local_file() is None:
+            return
+        kd = sharing.signed_in(_profile, self)
+        if kd is None:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            server_id = sharing.share(kd, local_mode.server(),
+                                      local_mode.library(), doc)
+        except Exception as exc:  # network, permissions…
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, "Share on KherveDOC",
+                                f"The document could not be shared:\n{exc}")
+            return
+        QApplication.restoreOverrideCursor()
+        window = open_window(QUrl(kd.page_url(server_id)))
+        QMessageBox.information(
+            window, "Shared on KherveDOC",
+            "The document is on KherveDOC. Use Share in its window to invite "
+            "people; they edit it with you, live. Your file on this Mac stays "
+            "as it was (File ▸ Save a Copy on this Mac brings the shared "
+            "version back).")
+
+    def save_copy_here(self):
+        found = self._server_doc()
+        if found is None or local_mode.library() is None:
+            return
+        origin, server_id = found
+        kd = sharing.saved_account()
+        if kd is None or kd.server.rstrip("/") != origin:
+            QSettings().setValue("sharing/server", origin)
+            kd = sharing.signed_in(_profile, self, ask_address=False)
+        if kd is None:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            local = sharing.save_copy(kd, local_mode.server(),
+                                      local_mode.library(), server_id)
+        except Exception as exc:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, "Save a Copy on this Mac",
+                                f"The copy could not be made:\n{exc}")
+            return
+        QApplication.restoreOverrideCursor()
+        open_window(QUrl(local_mode.server().doc_url(local)))
+
     def go_home(self):
         self.view.load(QUrl(server_url() + "/"))
 
@@ -410,7 +470,12 @@ class MainWindow(QMainWindow):
             self._action(file_menu, "Save As…", self.save_as, "Ctrl+Shift+S"),
             self._action(file_menu, "Show in Finder" if sys.platform == "darwin"
                          else "Show in Folder", self.show_in_finder),
+            self._action(file_menu, "Share on KherveDOC…", self.share_on_server),
         ]
+        self._copy_action = self._action(
+            file_menu, "Save a Copy on this Mac" if sys.platform == "darwin"
+            else "Save a Copy on this Computer", self.save_copy_here)
+        self._copy_action.setEnabled(False)
         for action in self._file_actions:
             action.setEnabled(False)
         file_menu.addSeparator()

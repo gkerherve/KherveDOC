@@ -10,7 +10,22 @@
  *               {id, ok, result | error} for each request.
  */
 /* global importScripts, loadPyodide, WorkerGlobalScope */
-const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
+const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
+// The KherveDOC desktop app serves Pyodide itself (cached on the computer,
+// so spreadsheets work offline); the website uses the CDN.
+const PYODIDE_LOCAL = new URL("pyodide/", self.location.href).href;
+function hasLocalPyodide() {
+  try {
+    const probe = new XMLHttpRequest();
+    probe.open("HEAD", PYODIDE_LOCAL + "pyodide.js", false);
+    probe.send();
+    return probe.status === 200 &&
+      /javascript/.test(probe.getResponseHeader("Content-Type") || "");
+  } catch (_error) {
+    return false;
+  }
+}
+const PYODIDE = hasLocalPyodide() ? PYODIDE_LOCAL : PYODIDE_CDN;
 importScripts(PYODIDE + "pyodide.js");
 
 /*

@@ -4,6 +4,7 @@ import { createGlobalStyle } from 'styled-components';
 
 import { Box } from '@/components';
 import { Waffle } from '@/components/Waffle';
+import { useIsLocalApp } from '@/core/config/api/useConfig';
 import { ButtonLogin, gotoLogout, useAuth } from '@/features/auth';
 import { HelpMenu } from '@/features/help';
 import { LanguagePicker } from '@/features/language/components/LanguagePicker';
@@ -17,6 +18,7 @@ const FooterActionsGlobalStyle = createGlobalStyle`
 export const FooterActions = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const isLocalApp = useIsLocalApp();
 
   const userMenu = user || {
     full_name: t('Guest'),
@@ -37,7 +39,7 @@ export const FooterActions = () => {
         <Box $direction="row" $align="center" $gap="3xs">
           <UserMenu
             user={userMenu}
-            logout={user ? gotoLogout : undefined}
+            logout={user && !isLocalApp ? gotoLogout : undefined}
             actions={<LanguagePicker />}
             withMobileView={false}
           />

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Icon, StyledLink, Text } from '@/components';
+import { useIsLocalApp } from '@/core/config/api/useConfig';
 import { useCunninghamTheme } from '@/cunningham';
 import { DocDefaultFilter } from '@/docs/doc-management';
 import { useLeftPanelStore } from '@/features/left-panel';
@@ -20,6 +21,8 @@ export const LeftPanelTargetFilters = () => {
   const { isMobile } = useResponsiveStore();
   const { closePanel } = useLeftPanelStore();
   const { colorsTokens, spacingsTokens } = useCunninghamTheme();
+  // The desktop app on its own lists the documents on this computer only.
+  const isLocalApp = useIsLocalApp();
 
   const target =
     (searchParams.get('target') as DocDefaultFilter) ??
@@ -102,48 +105,50 @@ export const LeftPanelTargetFilters = () => {
       $gap={spacingsTokens['2xs']}
       className="--docs--left-panel-target-filters"
     >
-      {defaultQueries.map((query) => {
-        const isActive = target === query.targetQuery;
-        const href = buildHref(query.targetQuery);
+      {(isLocalApp ? defaultQueries.slice(0, 1) : defaultQueries).map(
+        (query) => {
+          const isActive = target === query.targetQuery;
+          const href = buildHref(query.targetQuery);
 
-        return (
-          <StyledLink
-            key={query.label}
-            href={href}
-            aria-label={query.label}
-            aria-current={isActive ? 'page' : undefined}
-            onClick={handleFilterClick}
-            $css={css`
-              align-items: center;
-              justify-content: flex-start;
-              gap: var(--c--globals--spacings--3xs);
-              padding: var(--c--globals--spacings--2xs);
-              border-radius: var(--c--globals--spacings--3xs);
-              background-color: ${
-                isActive
-                  ? 'var(--c--contextuals--background--semantic--contextual--primary)'
-                  : 'transparent'
-              };
-              font-weight: 500;
-              color: inherit;
-              text-decoration: none;
-              &:hover {
-                background-color: var(
-                  --c--contextuals--background--semantic--contextual--primary
-                );
-              }
-              &:focus-visible {
-                outline: none !important;
-                box-shadow: 0 0 0 2px ${colorsTokens['brand-400']} !important;
-                border-radius: var(--c--globals--spacings--st);
-              }
-            `}
-          >
-            {query.icon}
-            <Text $size="sm">{query.label}</Text>
-          </StyledLink>
-        );
-      })}
+          return (
+            <StyledLink
+              key={query.label}
+              href={href}
+              aria-label={query.label}
+              aria-current={isActive ? 'page' : undefined}
+              onClick={handleFilterClick}
+              $css={css`
+                align-items: center;
+                justify-content: flex-start;
+                gap: var(--c--globals--spacings--3xs);
+                padding: var(--c--globals--spacings--2xs);
+                border-radius: var(--c--globals--spacings--3xs);
+                background-color: ${
+                  isActive
+                    ? 'var(--c--contextuals--background--semantic--contextual--primary)'
+                    : 'transparent'
+                };
+                font-weight: 500;
+                color: inherit;
+                text-decoration: none;
+                &:hover {
+                  background-color: var(
+                    --c--contextuals--background--semantic--contextual--primary
+                  );
+                }
+                &:focus-visible {
+                  outline: none !important;
+                  box-shadow: 0 0 0 2px ${colorsTokens['brand-400']} !important;
+                  border-radius: var(--c--globals--spacings--st);
+                }
+              `}
+            >
+              {query.icon}
+              <Text $size="sm">{query.label}</Text>
+            </StyledLink>
+          );
+        },
+      )}
     </Box>
   );
 };

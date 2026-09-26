@@ -43,6 +43,10 @@ interface ThemeCustomization {
 }
 
 export interface ConfigResponse {
+  /** Served by the KherveDOC desktop app's own local server: documents
+   * are files on the user's computer, with no sharing, trash or search
+   * across users. */
+  KHERVE_LOCAL?: boolean;
   AI_BOT: { name: string; color: string };
   AI_FEATURE_ENABLED?: boolean;
   AI_FEATURE_BLOCKNOTE_ENABLED?: boolean;
@@ -101,6 +105,9 @@ export const getConfig = async (): Promise<ConfigResponse> => {
 };
 
 export const KEY_CONFIG = 'config';
+
+/** True in the KherveDOC desktop app working on its own (no server). */
+export const useIsLocalApp = () => useConfig().data?.KHERVE_LOCAL === true;
 
 export function useConfig() {
   const cachedData = getCachedTranslation();

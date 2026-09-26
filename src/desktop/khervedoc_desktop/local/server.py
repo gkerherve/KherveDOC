@@ -16,13 +16,15 @@ import binascii
 import getpass
 import json
 import logging
+import mimetypes
+import os
 import re
 import socket
 import threading
 import uuid
 from pathlib import Path
 
-from aiohttp import WSMsgType, web
+from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
 from .rooms import Client, Rooms
 from .store import Library, media_type, now_iso
@@ -34,6 +36,12 @@ UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 DOC_PAGE = re.compile(rf"^/docs/({UUID})/?$")
 LOCAL_USER_ID = "00000000-0000-4000-8000-000000000001"
 DEFAULT_PORT = 38471
+#: Where Pyodide (the spreadsheets' Python) comes from the first time; the
+#: app keeps a copy, so spreadsheets then work offline.
+PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/"
+PYODIDE_FILE = re.compile(r"^[\w.+-]+$")
+mimetypes.add_type("application/wasm", ".wasm")
+mimetypes.add_type("text/javascript", ".mjs")
 
 CONFIG_TEMPLATE = json.loads(
     (Path(__file__).with_name("config_template.json")).read_text())
@@ -85,8 +93,13 @@ class LocalServer:
     """Runs on its own thread with its own asyncio loop."""
 
     def __init__(self, library: Library, static_dir: Path,
-                 app_version: str, port: int = DEFAULT_PORT):
+                 app_version: str, port: int = DEFAULT_PORT,
+                 pyodide_dir: Path | None = None,
+                 bundled_pyodide: Path | None = None):
         self.library = library
+        self.pyodide_dir = Path(pyodide_dir or library.data_dir / "pyodide-0.28.3")
+        self.bundled_pyodide = bundled_pyodide
+        self._fetching: dict[str, asyncio.Lock] = {}
         self.static_dir = Path(static_dir)
         self.app_version = app_version
         self.port = port
@@ -145,17 +158,17 @@ class LocalServer:
         self._ready.set()
         self._loop.run_forever()
 
-    def call(self, fn, *args):
+    def call(self, fn, *args, **kwargs):
         """Run *fn* on the server's loop (from the Qt thread) and wait."""
         if self._loop is None:
-            return fn(*args)
+            return fn(*args, **kwargs)
         future = asyncio.run_coroutine_threadsafe(
-            self._as_coro(fn, *args), self._loop)
+            self._as_coro(fn, *args, **kwargs), self._loop)
         return future.result(30)
 
     @staticmethod
-    async def _as_coro(fn, *args):
-        return fn(*args)
+    async def _as_coro(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
 
     def stop(self) -> None:
         if self._loop is None:
@@ -179,6 +192,7 @@ class LocalServer:
         r.add_patch(API + "users/{uid}/", self.update_user)
         r.add_get(API + "documents/", self.list_docs)
         r.add_post(API + "documents/", self.create_doc)
+        r.add_get(API + "documents/search/", self.search_docs)
         r.add_get(API + "documents/{id}/", self.get_doc)
         r.add_patch(API + "documents/{id}/", self.update_doc)
         r.add_get(API + "documents/{id}/content/", self.get_content)
@@ -192,6 +206,7 @@ class LocalServer:
         r.add_get(API + "documents/{id}/invitations/", self.empty_page)
         r.add_get(API + "documents/{id}/versions/", self.empty_page)
         r.add_get("/media/{id}/{key}", self.media)
+        r.add_get("/kherve-cell/pyodide/{name}", self.pyodide)
         r.add_route("*", API + "{tail:.*}", self.not_here)
         r.add_get("/{tail:.*}", self.static)
         return app
@@ -291,6 +306,16 @@ class LocalServer:
             "count": len(entries), "next": next_url,
             "previous": None, "results": [doc_json(e) for e in chunk]})
 
+    async def search_docs(self, request: web.Request) -> web.Response:
+        """Search the documents on this computer by title."""
+        q = (request.query.get("q") or "").strip().lower()
+        entries = [e for e in self.library.entries()
+                   if not q or q in (e.get("title") or "").lower()]
+        entries.sort(key=lambda e: e.get("updated_at") or "", reverse=True)
+        return web.json_response({
+            "count": len(entries), "next": None, "previous": None,
+            "results": [doc_json(e) for e in entries[:50]]})
+
     async def create_doc(self, request: web.Request) -> web.Response:
         body = {}
         if request.content_type == "application/json":
@@ -377,6 +402,39 @@ class LocalServer:
             raise web.HTTPNotFound()
         return web.Response(body=data, content_type=media_type(key),
                             headers={"Cache-Control": "max-age=31536000"})
+
+    # ── Pyodide (spreadsheets), kept on this computer ────────────────
+    async def pyodide(self, request: web.Request) -> web.StreamResponse:
+        name = request.match_info["name"]
+        if not PYODIDE_FILE.match(name):
+            raise web.HTTPNotFound()
+        for folder in (self.bundled_pyodide, self.pyodide_dir):
+            if folder is not None and (Path(folder) / name).is_file():
+                return web.FileResponse(Path(folder) / name)
+        lock = self._fetching.setdefault(name, asyncio.Lock())
+        async with lock:
+            target = self.pyodide_dir / name
+            if not target.is_file():
+                try:
+                    await self._download(PYODIDE_CDN + name, target)
+                except Exception as exc:  # offline, not on the CDN…
+                    log.info("Pyodide %s unavailable: %s", name, exc)
+                    raise web.HTTPNotFound()
+        return web.FileResponse(target)
+
+    @staticmethod
+    async def _download(url: str, target: Path) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        timeout = ClientTimeout(total=600)
+        async with ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    raise OSError(f"{url}: HTTP {response.status}")
+                tmp = target.with_name(target.name + ".part")
+                with open(tmp, "wb") as out:
+                    async for chunk in response.content.iter_chunked(1 << 16):
+                        out.write(chunk)
+        os.replace(tmp, target)
 
     async def empty_list(self, request: web.Request) -> web.Response:
         return web.json_response([])
