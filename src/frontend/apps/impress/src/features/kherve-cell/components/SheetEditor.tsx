@@ -358,6 +358,8 @@ const SheetWorkbookView = ({
       } else if (key === 'Home') {
         event.preventDefault();
         moveTo({ row: 0, col: 0 }, shiftKey);
+        // Back to the top-left, frozen panes or not.
+        gridRef.current?.scrollTo({ top: 0, left: 0 });
       }
       return;
     }

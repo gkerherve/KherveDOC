@@ -487,6 +487,21 @@ export const SheetGrid = ({
   const visibleRowList = range0(firstRow, lastRow);
   const visibleColList = range0(firstCol, lastCol);
 
+  // Collaborators' colours on the headers of the row and column they are on.
+  const presenceCol = new Map<number, string>();
+  const presenceRow = new Map<number, string>();
+  for (const p of presence) {
+    presenceCol.set(p.col, p.color);
+    presenceRow.set(p.row, p.color);
+  }
+  const mark = (color: string | undefined, side: 'bottom' | 'right') =>
+    color
+      ? {
+          backgroundImage: `linear-gradient(${color}55, ${color}55)`,
+          boxShadow: `inset ${side === 'right' ? '-3px 0' : '0 -3px'} 0 ${color}`,
+        }
+      : {};
+
   const colHeaders: React.ReactNode[] = [];
   for (const c of [...frozenColList, ...visibleColList]) {
     const selected = c >= range.left && c <= range.right;
@@ -494,7 +509,12 @@ export const SheetGrid = ({
       <div
         key={c}
         className={`kc-col-header${selected ? ' kc-header-selected' : ''}${c < fc ? ' kc-header-frozen' : ''}`}
-        style={{ left: cellX(c), top: scroll.top, width: widths[c] }}
+        style={{
+          left: cellX(c),
+          top: scroll.top,
+          width: widths[c],
+          ...mark(presenceCol.get(c), 'bottom'),
+        }}
         onMouseDown={(e) => {
           if (e.button === 0) {
             e.preventDefault();
@@ -530,7 +550,11 @@ export const SheetGrid = ({
       <div
         key={r}
         className={`kc-row-header${selected ? ' kc-header-selected' : ''}${r < fr ? ' kc-header-frozen' : ''}`}
-        style={{ top: cellY(r), left: scroll.left }}
+        style={{
+          top: cellY(r),
+          left: scroll.left,
+          ...mark(presenceRow.get(r), 'right'),
+        }}
         onMouseDown={(e) => {
           if (e.button === 0) {
             e.preventDefault();
