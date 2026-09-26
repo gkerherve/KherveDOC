@@ -7,6 +7,9 @@
 export type TextChange = [string | null, number, number, string];
 
 type Operation =
+  | 'render_chart'
+  | 'fit'
+  | 'solve'
   | 'reset'
   | 'set_cells'
   | 'set_formats'
@@ -62,7 +65,11 @@ export class CellEngine {
     };
   }
 
-  call<T>(op: Operation, payload: unknown): Promise<T> {
+  /**
+   * Run *op* in the engine. *needs* lists Pyodide packages to load first
+   * ("matplotlib", or "pypi:lmfit" from PyPI), once per session.
+   */
+  call<T>(op: Operation, payload: unknown, needs: string[] = []): Promise<T> {
     const run = () =>
       new Promise<T>((resolve, reject) => {
         const id = this.nextId++;
@@ -70,7 +77,7 @@ export class CellEngine {
           resolve: resolve as (v: unknown) => void,
           reject,
         });
-        this.worker.postMessage({ id, op, payload });
+        this.worker.postMessage({ id, op, payload, needs });
       });
     const result = this.queue.then(run, run);
     this.queue = result.catch(() => undefined);

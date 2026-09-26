@@ -18,11 +18,14 @@ import { useTranslation } from 'react-i18next';
 import { useStyleElement } from '@/docs/doc-editor/page-setup/useStyleElement';
 
 import { useCellPresence, useSheetWorkbook } from '../hooks';
+import { currentRegion, rangeRef, suggestChart } from '../model/charts';
 import { fillEdits } from '../model/fill';
 import { CellFormat, address, parseAddress } from '../model/layout';
 import { fromTsv, shiftFormula, toTsv } from '../model/shift';
 import type { SheetWorkbook } from '../model/workbook';
 
+import { ChartLayer, chartCss } from './ChartLayer';
+import { ChartPanel, chartPanelCss } from './ChartPanel';
 import { MenuItem, SheetContextMenu, menuCss } from './SheetContextMenu';
 import {
   CellPos,
@@ -72,7 +75,9 @@ export const SheetEditor = ({
 }: SheetEditorProps) => {
   const { t } = useTranslation();
   const { workbook, version } = useSheetWorkbook(provider, !readOnly, synced);
-  useStyleElement(gridCss + tabsCss + menuCss + editorCss);
+  useStyleElement(
+    gridCss + tabsCss + menuCss + chartCss + chartPanelCss + editorCss,
+  );
 
   if (!workbook) {
     return null;
@@ -116,6 +121,8 @@ const SheetWorkbookView = ({
   const [editMode, setEditMode] = useState<EditMode>('enter');
   const [editOrigin, setEditOrigin] = useState<'cell' | 'bar'>('cell');
   const [nameBox, setNameBox] = useState<string | null>(null);
+  const [chartId, setChartId] = useState<string | null>(null);
+  const [chartPanel, setChartPanel] = useState<string | null>(null);
   const editorRef = useRef<HTMLInputElement | null>(null);
   const barRef = useRef<HTMLInputElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -616,6 +623,59 @@ const SheetWorkbookView = ({
     }
   };
 
+  // ── Charts ───────────────────────────────────────────────────────
+  /** The selection, or the block of data around the cell (like Excel). */
+  const chartSource = () => {
+    const r = selectionRange(selection);
+    if (!activeId || r.top !== r.bottom || r.left !== r.right) {
+      return r;
+    }
+    return currentRegion(
+      (row, col) => workbook.text(activeId, row, col),
+      r.top,
+      r.left,
+      { rows, cols },
+    );
+  };
+
+  const insertChart = () => {
+    if (!activeId || readOnly) {
+      return;
+    }
+    const r = chartSource();
+    const empty =
+      !workbook.text(activeId, r.top, r.left) &&
+      r.top === r.bottom &&
+      r.left === r.right;
+    const guess = empty
+      ? { type: 'Line' as const, series: [] }
+      : suggestChart((row, col) => workbook.text(activeId, row, col), r);
+    const id = workbook.addChart({
+      sheetId: activeId,
+      row: r.top,
+      col: Math.min(cols - 1, r.right + 2),
+      width: 480,
+      height: 300,
+      ...guess,
+    });
+    setChartId(id);
+    setChartPanel(id);
+  };
+
+  const chartFromSelection = () => {
+    if (!activeId || !chartPanel) {
+      return;
+    }
+    const { type: _type, ...guess } = suggestChart(
+      (row, col) => workbook.text(activeId, row, col),
+      chartSource(),
+    );
+    workbook.updateChart(chartPanel, {
+      ...guess,
+      title: workbook.chart(chartPanel)?.title || guess.title,
+    });
+  };
+
   const fill = (source: Range, target: Range) => {
     if (!activeId || readOnly) {
       return;
@@ -743,6 +803,7 @@ const SheetWorkbookView = ({
           frozen={Boolean(freezeRows || freezeCols)}
           onSort={sort}
           onFreeze={toggleFreeze}
+          onInsertChart={insertChart}
         />
       )}
       <div className="kc-formula-bar">
@@ -823,6 +884,7 @@ const SheetWorkbookView = ({
             if (editing !== null) {
               commit();
             }
+            setChartId(null);
             select(next);
           }}
           onStartEdit={() => startEdit(source, 'edit')}
@@ -837,7 +899,36 @@ const SheetWorkbookView = ({
           onContextMenu={(x, y, target) =>
             !readOnly && setMenu({ x, y, target })
           }
+          overlay={(geometry) => (
+            <ChartLayer
+              workbook={workbook}
+              sheetId={activeId}
+              geometry={geometry}
+              rows={rows}
+              selectedId={chartId}
+              readOnly={readOnly}
+              onSelect={(id) => {
+                setChartId(id);
+                if (id === null) {
+                  focusGrid();
+                }
+              }}
+              onEdit={setChartPanel}
+            />
+          )}
         />
+        {chartPanel && workbook.chart(chartPanel)?.sheetId === activeId && (
+          <ChartPanel
+            workbook={workbook}
+            chartId={chartPanel}
+            selectionRef={rangeRef(range)}
+            onUseSelection={chartFromSelection}
+            onClose={() => {
+              setChartPanel(null);
+              focusGrid();
+            }}
+          />
+        )}
       </div>
       {menu && (
         <SheetContextMenu

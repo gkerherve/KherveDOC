@@ -47,6 +47,7 @@ interface SheetToolbarProps {
   frozen: boolean;
   onSort: (descending: boolean) => void;
   onFreeze: () => void;
+  onInsertChart: () => void;
 }
 
 const ColorButton = ({
@@ -88,6 +89,7 @@ export const SheetToolbar = ({
   frozen,
   onSort,
   onFreeze,
+  onInsertChart,
 }: SheetToolbarProps) => {
   const { t } = useTranslation();
   const [target, setTarget] = useState<HTMLElement | null>(null);
@@ -207,6 +209,12 @@ export const SheetToolbar = ({
           }
           pressed={frozen}
           onClick={onFreeze}
+        />
+        <Separator />
+        <ToolbarButton
+          icon="insert_chart"
+          label={t('Insert chart (from the selected cells)')}
+          onClick={onInsertChart}
         />
       </Box>
     </Box>

@@ -6,12 +6,14 @@
  * - `cells`   — "<sheet id>|<row>,<col>" → what was typed (value or formula)
  * - `formats` — same keys → JSON of KherveSheet's CellFormat.to_dict()
  * - `widths`  — "<sheet id>|<col>" → column width in pixels
+ * - `charts`  — chart id → JSON ChartSpec (drawn by matplotlib in the engine)
  */
 
 export const SHEETS = 'sheets';
 export const CELLS = 'cells';
 export const FORMATS = 'formats';
 export const WIDTHS = 'widths';
+export const CHARTS = 'charts';
 
 export const DEFAULT_ROWS = 5000;
 export const DEFAULT_COLS = 50;
@@ -26,6 +28,67 @@ export interface SheetMeta {
   /** Rows / columns kept in view while scrolling (freeze panes). */
   freezeRows?: number;
   freezeCols?: number;
+}
+
+export const CHART_TYPES = [
+  'Line',
+  'Line+Symbol',
+  'Scatter',
+  'Bar',
+  'Step',
+  'Stem',
+  'Histogram',
+  'Box',
+  'Pie',
+  'Doughnut',
+  '3D Pie',
+  'Heatmap',
+  '3D Surface',
+] as const;
+export type ChartType = (typeof CHART_TYPES)[number];
+
+export const CHART_COLORS = [
+  '#1f77b4',
+  '#ff7f0e',
+  '#2ca02c',
+  '#d62728',
+  '#9467bd',
+  '#8c564b',
+  '#e377c2',
+  '#7f7f7f',
+  '#bcbd22',
+  '#17becf',
+];
+
+export interface ChartSeries {
+  /** Range of the values, e.g. "B2:B20" or "Sheet2!B2:B20". */
+  ref: string;
+  name?: string;
+  color?: string;
+}
+
+/** A chart, as khervesheet/core/charts.py draws it. */
+export interface ChartSpec {
+  /** The sheet the chart sits on; ranges without a sheet name are there. */
+  sheetId: string;
+  /** Top-left corner: a cell, plus pixels inside it. */
+  row: number;
+  col: number;
+  dx?: number;
+  dy?: number;
+  width: number;
+  height: number;
+  type: ChartType;
+  title?: string;
+  xLabel?: string;
+  yLabel?: string;
+  /** Range of the X values or categories; none: 1, 2, 3… */
+  x?: string | null;
+  series: ChartSeries[];
+  legend?: boolean;
+  grid?: boolean;
+  logX?: boolean;
+  logY?: boolean;
 }
 
 /** KherveSheet's CellFormat.to_dict() keys (the ones the web edits). */

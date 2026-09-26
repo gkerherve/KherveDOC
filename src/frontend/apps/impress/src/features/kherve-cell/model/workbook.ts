@@ -9,10 +9,13 @@
  */
 import * as Y from 'yjs';
 
+import { adjustChart } from './charts';
 import type { TextChange } from './engineClient';
 import {
   CELLS,
+  CHARTS,
   CellFormat,
+  ChartSpec,
   DEFAULT_COLS,
   DEFAULT_ROWS,
   DEFAULT_WIDTH,
@@ -35,7 +38,7 @@ export const LOCAL_ORIGIN = 'kherve-cell-local';
 
 export interface Engine {
   ready: Promise<void>;
-  call<T>(op: string, payload: unknown): Promise<T>;
+  call<T>(op: string, payload: unknown, needs?: string[]): Promise<T>;
 }
 
 export interface Sheet {
@@ -50,10 +53,13 @@ export class SheetWorkbook {
   readonly yCells: Y.Map<string>;
   readonly yFormats: Y.Map<string>;
   readonly yWidths: Y.Map<number>;
+  readonly yCharts: Y.Map<string>;
   readonly undoManager: Y.UndoManager;
 
   /** Monotonic counter the UI subscribes to. */
   version = 0;
+  /** Changes whenever any cell shows something new (charts redraw). */
+  dataVersion = 0;
   /** The engine has computed the whole workbook at least once. */
   calculated = false;
   /** This window may edit (and so resolves sheet-name clashes). */
@@ -82,8 +88,9 @@ export class SheetWorkbook {
     this.yCells = ydoc.getMap<string>(CELLS);
     this.yFormats = ydoc.getMap<string>(FORMATS);
     this.yWidths = ydoc.getMap<number>(WIDTHS);
+    this.yCharts = ydoc.getMap<string>(CHARTS);
     this.undoManager = new Y.UndoManager(
-      [this.ySheets, this.yCells, this.yFormats, this.yWidths],
+      [this.ySheets, this.yCells, this.yFormats, this.yWidths, this.yCharts],
       { trackedOrigins: new Set([LOCAL_ORIGIN]), captureTimeout: 400 },
     );
   }
@@ -106,7 +113,9 @@ export class SheetWorkbook {
     this.yCells.observe(onCells);
     this.yFormats.observe(onFormats);
     this.yWidths.observe(onWidths);
+    this.yCharts.observe(onWidths);
     this.unobserve = [
+      () => this.yCharts.unobserve(onWidths),
       () => this.ySheets.unobserve(onSheets),
       () => this.yCells.unobserve(onCells),
       () => this.yFormats.unobserve(onFormats),
@@ -231,6 +240,7 @@ export class SheetWorkbook {
         this.texts.set(sheetId, map);
       }
       this.calculated = true;
+      this.dataVersion += 1;
       this.error = undefined;
     } catch (error) {
       this.error = String(error);
@@ -278,6 +288,35 @@ export class SheetWorkbook {
       }
     });
     return widths;
+  }
+
+  /** The charts on a sheet. */
+  charts(sheetId: string): { id: string; spec: ChartSpec }[] {
+    const list: { id: string; spec: ChartSpec }[] = [];
+    this.yCharts.forEach((raw, id) => {
+      const spec = parseJson<ChartSpec>(raw);
+      if (spec && spec.sheetId === sheetId) {
+        list.push({ id, spec });
+      }
+    });
+    return list.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  chart(id: string) {
+    return parseJson<ChartSpec>(this.yCharts.get(id));
+  }
+
+  /**
+   * Draw a chart with matplotlib, in the engine, from the values every cell
+   * shows once the edits made so far are calculated.
+   */
+  async renderChart(spec: ChartSpec) {
+    await this.settled();
+    return this.engine.call<{ svg?: string; error?: string }>(
+      'render_chart',
+      { sheetId: spec.sheetId, spec },
+      ['matplotlib'],
+    );
   }
 
   // ── Editing ──────────────────────────────────────────────────────
@@ -390,6 +429,33 @@ export class SheetWorkbook {
           }
         }
       }
+      for (const chart of this.charts(id)) {
+        this.yCharts.delete(chart.id);
+      }
+    }, LOCAL_ORIGIN);
+  }
+
+  addChart(spec: ChartSpec): string {
+    const id = newSheetId();
+    this.ydoc.transact(() => {
+      this.yCharts.set(id, JSON.stringify(spec));
+    }, LOCAL_ORIGIN);
+    return id;
+  }
+
+  updateChart(id: string, patch: Partial<ChartSpec>) {
+    const spec = this.chart(id);
+    if (!spec) {
+      return;
+    }
+    this.ydoc.transact(() => {
+      this.yCharts.set(id, JSON.stringify({ ...spec, ...patch }));
+    }, LOCAL_ORIGIN);
+  }
+
+  removeChart(id: string) {
+    this.ydoc.transact(() => {
+      this.yCharts.delete(id);
     }, LOCAL_ORIGIN);
   }
 
@@ -456,6 +522,18 @@ export class SheetWorkbook {
         const adjusted = adjustFormula(source, names.get(at2) ?? '', change);
         if (adjusted !== source) {
           this.yCells.set(key, adjusted);
+        }
+      }
+      // Charts: their ranges follow, and so does the cell they sit on.
+      for (const [id, raw] of Array.from(this.yCharts.entries())) {
+        const spec = parseJson<ChartSpec>(raw);
+        if (!spec) {
+          continue;
+        }
+        const next = adjustChart(spec, names.get(spec.sheetId) ?? '', change);
+        const json = JSON.stringify(next);
+        if (json !== raw) {
+          this.yCharts.set(id, json);
         }
       }
       if (axis === 'col') {
@@ -704,6 +782,9 @@ export class SheetWorkbook {
       }
     } catch (error) {
       this.error = String(error);
+    }
+    if (changes.length) {
+      this.dataVersion += 1;
     }
     for (const [sheetId, row, col, text] of changes) {
       if (!sheetId) {

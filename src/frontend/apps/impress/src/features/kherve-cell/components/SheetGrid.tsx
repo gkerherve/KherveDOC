@@ -100,6 +100,14 @@ interface SheetGridProps {
   /** The fill handle was dragged from *source* over *target*. */
   onFill: (source: Range, target: Range) => void;
   onContextMenu: (x: number, y: number, target: ContextTarget) => void;
+  /** Drawn over the cells, scrolling with them (charts). */
+  overlay?: (geometry: GridGeometry) => React.ReactNode;
+}
+
+/** Where columns are: x of each left edge (after the row header), widths. */
+export interface GridGeometry {
+  lefts: number[];
+  widths: number[];
 }
 
 export const SheetGrid = ({
@@ -125,6 +133,7 @@ export const SheetGrid = ({
   onPickReference,
   onFill,
   onContextMenu,
+  overlay,
 }: SheetGridProps) => {
   // The keyboard's target while not editing: typed text arrives here as
   // text (dead keys and input methods included), not as guessed key codes.
@@ -711,6 +720,7 @@ export const SheetGrid = ({
             </div>
           ) : null,
         )}
+        {overlay?.({ lefts, widths })}
         {editing !== null && (
           <input
             ref={editorRef}
