@@ -73,6 +73,28 @@ describe('custom text styles', () => {
     ]);
   });
 
+  test('keep KherveCELL spreadsheet tables', async () => {
+    const snapshot = JSON.stringify({
+      columns: ['Sample', 'Mass'],
+      rows: [['A', '1.5']],
+    });
+    const props = { docId: 'abc123', tableId: 'Table1', name: 'Lab', snapshot };
+    const ydoc = editor.blocksToYDoc(
+      [{ type: 'spreadsheet', props }],
+      'document-store',
+    );
+    const [block] = editor.yDocToBlocks(ydoc, 'document-store');
+
+    expect(block.type).toBe('spreadsheet');
+    expect(block.props).toEqual(props);
+
+    const html = await editor.blocksToHTMLLossy([
+      { type: 'spreadsheet', props },
+    ]);
+    expect(html).toMatch(/<th[^>]*>Mass<\/th>/);
+    expect(html).toMatch(/<td[^>]*>1\.5<\/td>/);
+  });
+
   test('render to HTML', async () => {
     const html = await editor.blocksToHTMLLossy(blocks);
 

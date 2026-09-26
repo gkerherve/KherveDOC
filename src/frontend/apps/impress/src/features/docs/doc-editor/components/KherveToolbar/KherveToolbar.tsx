@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { Box, DropdownMenu, DropdownMenuOption, Icon } from '@/components';
 import { useFindReplaceStore } from '@/docs/doc-find-replace/stores/useFindReplaceStore';
 import { useDocStore } from '@/docs/doc-management';
+import { useCellsUrl } from '@/features/cells';
 
 import { StylesModal } from '../../doc-styles/StylesModal';
 import { useDocStyles } from '../../doc-styles/useDocStyles';
@@ -38,6 +39,7 @@ import {
   DocsStyleSchema,
 } from '../../types';
 import { useDocsSlashMenuItems } from '../BlockNoteSuggestionMenu';
+import { insertSpreadsheetBlock } from '../custom-blocks/SpreadsheetBlock';
 import {
   ParagraphProps,
   TEXT_BLOCK_TYPES,
@@ -192,6 +194,7 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [editor]);
 
+  const cellsUrl = useCellsUrl();
   const nativeMenusRef = useRef<Menu[]>([]);
   useNativeMenus(nativeMenusRef);
 
@@ -702,6 +705,13 @@ export const KherveToolbar = ({ aiAllowed }: { aiAllowed: boolean }) => {
           ? [
               option(t('Horizontal line'), () =>
                 run(() => dividerItem.onItemClick()),
+              ),
+            ]
+          : []),
+        ...(cellsUrl
+          ? [
+              option(t('Spreadsheet table…'), () =>
+                run(() => insertSpreadsheetBlock(editor)),
               ),
             ]
           : []),

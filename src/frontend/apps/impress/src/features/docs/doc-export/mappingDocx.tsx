@@ -19,6 +19,7 @@ import {
   blockMappingToggleListItemDocx,
   blockMappingUploadLoaderDocx,
 } from './blocks-mapping';
+import { blockMappingSpreadsheetDocx } from './blocks-mapping/spreadsheetDocx';
 import {
   inlineContentMappingFootnoteDocx,
   inlineContentMappingInterlinkingLinkDocx,
@@ -36,6 +37,7 @@ export const docxDocsSchemaMappings: DocsExporterDocx['mappings'] = {
     checkListItem: blockMappingCheckListItemDocx,
     toggleListItem: blockMappingToggleListItemDocx,
     callout: blockMappingCalloutDocx,
+    spreadsheet: blockMappingSpreadsheetDocx,
     // We're reusing the file block mapping for PDF blocks; both share the same
     // implementation signature, so we can reuse the handler directly.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

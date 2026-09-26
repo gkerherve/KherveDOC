@@ -73,7 +73,12 @@ import { BlockNoteSuggestionMenu } from './BlockNoteSuggestionMenu';
 import { BlockNoteToolbar } from './BlockNoteToolBar/BlockNoteToolbar';
 import { DocsSideMenu } from './DocsSideMenu/DocsSideMenu';
 import { KherveToolbar } from './KherveToolbar/KherveToolbar';
-import { CalloutBlock, PdfBlock, UploadLoaderBlock } from './custom-blocks';
+import {
+  CalloutBlock,
+  PdfBlock,
+  SpreadsheetBlock,
+  UploadLoaderBlock,
+} from './custom-blocks';
 const AIMenu = BlockNoteAI?.AIMenu;
 const AIMenuController = BlockNoteAI?.AIMenuController;
 const useAI = BlockNoteAI?.useAI;
@@ -109,6 +114,7 @@ const baseBlockNoteSchema = withPageBreak(
       diagram: createReactDiagramBlockSpec(),
       mathBlock: createReactMathBlockSpec(),
       pdf: PdfBlock(),
+      spreadsheet: SpreadsheetBlock(),
       uploadLoader: UploadLoaderBlock(),
     },
     inlineContentSpecs: {

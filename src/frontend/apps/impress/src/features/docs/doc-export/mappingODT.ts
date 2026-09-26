@@ -15,6 +15,7 @@ import {
   blockMappingQuoteODT,
   blockMappingUploadLoaderODT,
 } from './blocks-mapping';
+import { blockMappingSpreadsheetODT } from './blocks-mapping/spreadsheetODT';
 import {
   inlineContentMappingFootnoteODT,
   inlineContentMappingInterlinkingLinkODT,
@@ -33,6 +34,7 @@ export const odtDocsSchemaMappings: DocsExporterODT['mappings'] = {
     heading: blockMappingHeadingODT,
     quote: blockMappingQuoteODT,
     callout: blockMappingCalloutODT,
+    spreadsheet: blockMappingSpreadsheetODT,
     image: blockMappingImageODT,
     // We're reusing the file block mapping for PDF blocks
     // The types don't match exactly but the implementation is compatible

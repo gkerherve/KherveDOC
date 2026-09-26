@@ -10,6 +10,7 @@ import { CalloutBlock } from './Callout';
 import { FootnoteInline } from './Footnote';
 import { InterlinkingLinkInline } from './InterlinkingLinkInline';
 import { PdfBlock } from './Pdf';
+import { SpreadsheetBlock } from './Spreadsheet';
 import { UploadLoaderBlock } from './UploadLoader';
 import { withParagraphProps } from './paragraphProps';
 import { customStyleSpecs } from './styles';
@@ -29,6 +30,7 @@ export const docsBlockNoteSchema = withPageBreak(
       toggleListItem: withParagraphProps(defaultBlockSpecs.toggleListItem),
       callout: CalloutBlock(),
       pdf: PdfBlock(),
+      spreadsheet: SpreadsheetBlock(),
       uploadLoader: UploadLoaderBlock(),
     },
     inlineContentSpecs: {

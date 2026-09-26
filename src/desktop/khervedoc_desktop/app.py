@@ -94,6 +94,11 @@ def is_server_url(url: QUrl) -> bool:
     return _origin(url) == _origin(QUrl(server_url()))
 
 
+def is_server_host(url: QUrl) -> bool:
+    """Same scheme and host as the server, any port: KherveCELL runs beside it."""
+    return _origin(url)[:2] == _origin(QUrl(server_url()))[:2]
+
+
 def open_externally(url: QUrl) -> None:
     if url.scheme() in ("http", "https", "mailto"):
         QDesktopServices.openUrl(url)
@@ -128,12 +133,13 @@ class Page(QWebEnginePage):
 
     @staticmethod
     def _on_permission_requested(permission: QWebEnginePermission):
-        # The toolbar's Paste button reads the clipboard; allow that for the
-        # KherveDOC server only and refuse everything else.
+        # The toolbar's Paste button (and pasting in an embedded KherveCELL
+        # spreadsheet) reads the clipboard; allow that for the KherveDOC host
+        # only and refuse everything else.
         if (
             permission.permissionType()
             == QWebEnginePermission.PermissionType.ClipboardReadWrite
-            and is_server_url(permission.origin())
+            and is_server_host(permission.origin())
         ):
             permission.grant()
         else:

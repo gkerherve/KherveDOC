@@ -21,6 +21,7 @@ import {
   blockMappingTablePDF,
   blockMappingUploadLoaderPDF,
 } from './blocks-mapping';
+import { blockMappingSpreadsheetPDF } from './blocks-mapping/spreadsheetPDF';
 import {
   inlineContentMappingFootnotePDF,
   inlineContentMappingInterlinkingLinkPDF,
@@ -72,6 +73,7 @@ export const pdfDocsSchemaMappings: DocsExporterPDF['mappings'] = {
   blockMapping: {
     ...pdfDefaultSchemaMappings.blockMapping,
     callout: blockMappingCalloutPDF,
+    spreadsheet: blockMappingSpreadsheetPDF,
     heading: withTextFormatting<'heading'>(blockMappingHeadingPDF),
     image: blockMappingImagePDF,
     paragraph: withTextFormatting<'paragraph'>(blockMappingParagraphPDF),

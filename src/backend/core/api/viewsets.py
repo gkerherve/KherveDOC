@@ -3121,6 +3121,7 @@ class ConfigView(drf.views.APIView):
             "FRONTEND_JS_URL",
             "FRONTEND_SILENT_LOGIN_ENABLED",
             "FRONTEND_THEME",
+            "KHERVECELL_URL",
             "MEDIA_BASE_URL",
             "POSTHOG_KEY",
             "POSTHOG_HOST",

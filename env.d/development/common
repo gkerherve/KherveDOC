@@ -98,3 +98,6 @@ SEARCH_URL=http://find:8000/api/v1.0/documents/search/
 SEARCH_INDEXER_QUERY_LIMIT=50
 
 CONVERSION_UPLOAD_ENABLED=true
+
+# KherveCELL spreadsheets (khervecell/compose.yml in the KherveCELL repo)
+KHERVECELL_URL=http://localhost:8484
