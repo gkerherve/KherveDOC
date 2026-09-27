@@ -15,6 +15,7 @@ import {
 import { useAuth } from '@/features/auth/';
 import { SkeletonEditorCore, useSkeletonStore } from '@/features/skeletons';
 import { useSkeletonFadeOut } from '@/features/skeletons/hooks/useFadeOut';
+import { NoteDocEditor } from '@/features/sov-notes';
 import { SheetDocEditor } from '@/features/sov-sheets';
 import { SlideDocEditor } from '@/features/sov-slides';
 import { useAnalytics } from '@/libs';
@@ -148,6 +149,10 @@ const DocContentEditor = ({ doc }: DocEditorProps) => {
 
   if (doc.kind === 'sheet') {
     return <SheetDocEditor doc={doc} readOnly={readOnly} />;
+  }
+
+  if (doc.kind === 'note') {
+    return <NoteDocEditor doc={doc} readOnly={readOnly} />;
   }
 
   if (doc.kind === 'slide') {

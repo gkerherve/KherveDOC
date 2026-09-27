@@ -27,7 +27,10 @@ const Page: NextPageWithLayout = () => {
   const title = searchParams.get('title');
   const kindParam = searchParams.get('kind');
   const kind =
-    kindParam === 'sheet' || kindParam === 'slide' || kindParam === 'folder'
+    kindParam === 'sheet' ||
+    kindParam === 'slide' ||
+    kindParam === 'note' ||
+    kindParam === 'folder'
       ? kindParam
       : undefined;
   const { authenticated } = useAuth();

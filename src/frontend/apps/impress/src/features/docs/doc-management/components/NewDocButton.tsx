@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Text } from '@/components';
 import { useLeftPanelStore } from '@/features/left-panel/stores/useLeftPanelStore';
+import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
 import ArrowDownIcon from '@/icons/arrow-drop-down.svg';
@@ -135,6 +136,16 @@ export function DropdownArrow() {
         icon: <SlidesIcon />,
         callback: () => {
           void router.push('/docs/new?kind=slide');
+          if (isMobile) {
+            closePanel();
+          }
+        },
+      },
+      {
+        label: t('New note'),
+        icon: <NotesIcon />,
+        callback: () => {
+          void router.push('/docs/new?kind=note');
           if (isMobile) {
             closePanel();
           }

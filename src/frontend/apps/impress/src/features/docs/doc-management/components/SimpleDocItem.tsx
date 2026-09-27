@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
+import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
 import { useDate } from '@/hooks/useDate';
@@ -74,6 +75,12 @@ export const SimpleDocItem = ({
           icon={<SlidesIcon size={isSmallMobile ? 35 : 40} />}
           $shrink="0"
           data-testid="doc-slide-icon"
+        />
+      ) : doc.kind === 'note' ? (
+        <Icon
+          icon={<NotesIcon size={isSmallMobile ? 35 : 40} />}
+          $shrink="0"
+          data-testid="doc-note-icon"
         />
       ) : doc.kind === 'sheet' ? (
         <Icon

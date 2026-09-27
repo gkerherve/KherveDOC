@@ -934,12 +934,13 @@ class DocumentManager(MP_NodeManager.from_queryset(DocumentQuerySet)):
 # pylint: disable=too-many-public-methods
 class DocumentKind(models.TextChoices):
     """What a document holds: text (BlockNote), a spreadsheet (SOV Sheets),
-    slides (a presentation), or nothing but other documents (a folder, whose
+    slides (a presentation), a note (text with handwriting over it), or nothing but other documents (a folder, whose
     content is its children)."""
 
     DOCUMENT = "doc", _("Document")
     SPREADSHEET = "sheet", _("Spreadsheet")
     SLIDES = "slide", _("Slides")
+    NOTE = "note", _("Note")
     FOLDER = "folder", _("Folder")
 
 

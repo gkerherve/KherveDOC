@@ -19,6 +19,7 @@ import {
   useTrans,
 } from '@/docs/doc-management';
 import { useLeftPanelStore } from '@/features/left-panel';
+import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
 import { useResponsiveStore } from '@/stores';
@@ -263,6 +264,8 @@ const DocSubPageItemContent = (props: TreeViewNodeProps<Doc>) => {
               <SpreadsheetIcon size={16} />
             ) : doc.kind === 'slide' ? (
               <SlidesIcon size={16} />
+            ) : doc.kind === 'note' ? (
+              <NotesIcon size={16} />
             ) : (
               <SubPageIcon
                 color="var(--c--contextuals--content--semantic--info--tertiary)"

@@ -35,9 +35,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 EXTENSION = ".kdoc"
-KINDS = ("doc", "sheet", "slide")
+KINDS = ("doc", "sheet", "slide", "note")
 UNTITLED = {"doc": "Untitled document", "sheet": "Untitled spreadsheet",
-            "slide": "Untitled slides"}
+            "slide": "Untitled slides", "note": "Untitled note"}
 FOLDER = "folder"
 FOLDER_MARK = ".kherve-folder"
 #: Where documents deleted without a system Trash go (see server.py).
@@ -465,7 +465,7 @@ class Library:
         path = file.path.resolve()
         root = self._root
         return ((path.parent == root or root in path.parents)
-                and re.fullmatch(r"Untitled (document|spreadsheet|slides)( \d+)?",
+                and re.fullmatch(r"Untitled (document|spreadsheet|slides|note)( \d+)?",
                                  path.stem) is not None)
 
     def rename_to_title(self, doc_id: str, title: str) -> Path | None:

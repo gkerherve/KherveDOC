@@ -34,6 +34,7 @@ export const useTrans = () => {
         doc: t('Untitled document'),
         sheet: t('Untitled spreadsheet'),
         slide: t('Untitled slides'),
+        note: t('Untitled note'),
         folder: t('Untitled folder'),
       })[kind ?? 'doc'],
     translatedRoles,

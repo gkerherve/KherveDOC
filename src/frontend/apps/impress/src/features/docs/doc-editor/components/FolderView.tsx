@@ -20,6 +20,7 @@ import { useImport } from '@/docs/doc-management/hooks/useImport';
 import { useInfiniteDocChildren } from '@/docs/doc-tree/api/useDocChildren';
 import { DocGridContentList } from '@/docs/docs-grid/components/DocGridContentList';
 import { useSkeletonStore } from '@/features/skeletons';
+import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
 import PlusIcon from '@/icons/doc-plus.svg';
@@ -125,6 +126,15 @@ export const FolderView = ({ doc }: FolderViewProps) => {
             onClick={() => create('slide')}
           >
             {t('New slides')}
+          </Button>
+          <Button
+            color="brand"
+            variant="secondary"
+            size="small"
+            icon={<NotesIcon size={18} />}
+            onClick={() => create('note')}
+          >
+            {t('New note')}
           </Button>
           <Button
             color="brand"

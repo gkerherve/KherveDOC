@@ -137,9 +137,16 @@ export const blockNoteSchema = (withMultiColumn?.(baseBlockNoteSchema) ||
 interface BlockNoteEditorProps {
   doc: Doc;
   provider: HocuspocusProvider;
+  /** A note is plain flowing text: no Word toolbar, no pages. */
+  variant?: 'doc' | 'note';
 }
 
-export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
+export const BlockNoteEditor = ({
+  doc,
+  provider,
+  variant = 'doc',
+}: BlockNoteEditorProps) => {
+  const isNote = variant === 'note';
   const { user } = useAuth();
   const { setEditor } = useEditorStore();
   const { themeTokens } = useCunninghamTheme();
@@ -303,9 +310,13 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
           FindAndReplace.configure({
             injectCSS: false,
           }),
-          KhervePagination.configure({
-            getSetup: () => pageSetupRef.current,
-          }),
+          ...(isNote
+            ? []
+            : [
+                KhervePagination.configure({
+                  getSetup: () => pageSetupRef.current,
+                }),
+              ]),
           KherveFormattingMarks,
         ],
       },
@@ -335,6 +346,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
       uploadFile,
       threadStore,
       resolveUsers,
+      isNote,
     ],
   );
 
@@ -366,7 +378,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
     <Box ref={refEditorContainer} $height="100%">
       <DocsEditorStyle />
       <ParagraphFormattingStyle />
-      <DocPageLayout />
+      {!isNote && <DocPageLayout />}
       <FootnoteStyle />
       <DocStylesStyle />
       <DocsCommentsStyle
@@ -398,7 +410,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
         {aiBlockNoteAllowed && AIMenuController && AIMenu && (
           <AIMenuController aiMenu={AIMenu} />
         )}
-        <SovToolbar aiAllowed={aiBlockNoteAllowed} />
+        {!isNote && <SovToolbar aiAllowed={aiBlockNoteAllowed} />}
         <BlockNoteSuggestionMenu aiAllowed={aiBlockNoteAllowed} />
         <BlockNoteToolbar aiAllowed={aiBlockNoteAllowed} />
         <DocsSideMenu />
