@@ -7,7 +7,7 @@
 
 #define MyAppName "Sovereign Office"
 #define MyAppPublisher "Gwilherm Kerherve"
-#define MyAppURL "https://github.com/gkerherve/KherveDOC"
+#define MyAppURL "https://github.com/gkerherve/SovereignOffice"
 #define MyAppExeName "SovOffice.exe"
 #define MyAppVersion "0.1.0"
 

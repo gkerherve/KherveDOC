@@ -15,7 +15,7 @@
       "externalLinks": [
         {
           "label": "Sovereign Office on GitHub",
-          "href": "https://github.com/gkerherve/KherveDOC"
+          "href": "https://github.com/gkerherve/SovereignOffice"
         },
         {
           "label": "Based on Docs (DINUM · ZenDiS)",
@@ -53,7 +53,7 @@
         "label": "Unless otherwise stated, all content on this site is under",
         "link": {
           "label": "licence MIT",
-          "href": "https://github.com/gkerherve/KherveDOC/blob/khervedoc/LICENSE"
+          "href": "https://github.com/gkerherve/SovereignOffice/blob/khervedoc/LICENSE"
         }
       }
     },
@@ -76,7 +76,7 @@
         "label": "Sauf mention contraire, tout le contenu de ce site est sous",
         "link": {
           "label": "licence MIT",
-          "href": "https://github.com/gkerherve/KherveDOC/blob/khervedoc/LICENSE"
+          "href": "https://github.com/gkerherve/SovereignOffice/blob/khervedoc/LICENSE"
         }
       }
     },
@@ -99,7 +99,7 @@
         "label": "Sofern nicht anders angegeben, steht der gesamte Inhalt dieser Website unter",
         "link": {
           "label": "licence MIT",
-          "href": "https://github.com/gkerherve/KherveDOC/blob/khervedoc/LICENSE"
+          "href": "https://github.com/gkerherve/SovereignOffice/blob/khervedoc/LICENSE"
         }
       }
     },
@@ -122,7 +122,7 @@
         "label": "Tenzij anders vermeld, is alle inhoud van deze site ondergebracht onder",
         "link": {
           "label": "licence MIT",
-          "href": "https://github.com/gkerherve/KherveDOC/blob/khervedoc/LICENSE"
+          "href": "https://github.com/gkerherve/SovereignOffice/blob/khervedoc/LICENSE"
         }
       }
     }
