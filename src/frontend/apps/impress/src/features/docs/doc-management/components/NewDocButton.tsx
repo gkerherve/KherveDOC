@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 
 import { Text } from '@/components';
 import { useLeftPanelStore } from '@/features/left-panel/stores/useLeftPanelStore';
+import { ChatIcon } from '@/features/sov-chat/components/ChatIcon';
+import { MeetIcon } from '@/features/sov-meet/components/MeetIcon';
 import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
@@ -146,6 +148,26 @@ export function DropdownArrow() {
         icon: <NotesIcon />,
         callback: () => {
           void router.push('/docs/new?kind=note');
+          if (isMobile) {
+            closePanel();
+          }
+        },
+      },
+      {
+        label: t('New chat'),
+        icon: <ChatIcon />,
+        callback: () => {
+          void router.push('/docs/new?kind=chat');
+          if (isMobile) {
+            closePanel();
+          }
+        },
+      },
+      {
+        label: t('New meeting'),
+        icon: <MeetIcon />,
+        callback: () => {
+          void router.push('/docs/new?kind=meet');
           if (isMobile) {
             closePanel();
           }

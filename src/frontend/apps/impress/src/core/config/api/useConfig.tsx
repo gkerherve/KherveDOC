@@ -47,6 +47,8 @@ export interface ConfigResponse {
    * are files on the user's computer, with no sharing, trash or search
    * across users. */
   KHERVE_LOCAL?: boolean;
+  /** A video server (LiveKit) is set up for SOV Meet. */
+  MEET_ENABLED?: boolean;
   AI_BOT: { name: string; color: string };
   AI_FEATURE_ENABLED?: boolean;
   AI_FEATURE_BLOCKNOTE_ENABLED?: boolean;

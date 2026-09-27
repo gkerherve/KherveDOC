@@ -19,6 +19,8 @@ import {
   useTrans,
 } from '@/docs/doc-management';
 import { useLeftPanelStore } from '@/features/left-panel';
+import { ChatIcon } from '@/features/sov-chat/components/ChatIcon';
+import { MeetIcon } from '@/features/sov-meet/components/MeetIcon';
 import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
@@ -264,6 +266,10 @@ const DocSubPageItemContent = (props: TreeViewNodeProps<Doc>) => {
               <SpreadsheetIcon size={16} />
             ) : doc.kind === 'slide' ? (
               <SlidesIcon size={16} />
+            ) : doc.kind === 'chat' ? (
+              <ChatIcon size={16} />
+            ) : doc.kind === 'meet' ? (
+              <MeetIcon size={16} />
             ) : doc.kind === 'note' ? (
               <NotesIcon size={16} />
             ) : (

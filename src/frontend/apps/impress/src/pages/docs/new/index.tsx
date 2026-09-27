@@ -30,6 +30,8 @@ const Page: NextPageWithLayout = () => {
     kindParam === 'sheet' ||
     kindParam === 'slide' ||
     kindParam === 'note' ||
+    kindParam === 'chat' ||
+    kindParam === 'meet' ||
     kindParam === 'folder'
       ? kindParam
       : undefined;

@@ -51,7 +51,7 @@ from treebeard.exceptions import InvalidMoveToDescendant
 from core import authentication, choices, enums, models
 from core.api.filters import remove_accents
 from core.services import examples as examples_service
-from core.services import mime_types
+from core.services import meet, mime_types
 from core.services.ai_services.blocknote import AIService
 from core.services.ai_services.legacy import get_legacy_ai_service
 from core.services.collaboration_services import CollaborationService
@@ -2260,6 +2260,35 @@ class DocumentViewSet(
 
         return response
 
+    @drf.decorators.action(detail=True, methods=["post"], url_path="meet-token")
+    def meet_token(self, request, *args, **kwargs):
+        """
+        POST /api/v1.0/documents/<id>/meet-token/
+            A token to join this document's video call (SOV Meet), for
+            anyone who can open the document.
+        """
+        document = self.get_object()
+        if not meet.is_enabled():
+            return drf.response.Response(
+                {"detail": "Video calls are not set up on this server."},
+                status=drf.status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        user = request.user
+        # One identity per connection: the same person may join from two
+        # windows or devices (the server drops a repeated identity).
+        if user.is_authenticated:
+            identity = f"{user.id}#{uuid.uuid4().hex[:8]}"
+            name = user.full_name or user.email or _("Anonymous")
+        else:
+            identity = f"guest-{uuid.uuid4().hex[:12]}"
+            name = str(request.data.get("name") or "").strip()[:60] or _("Guest")
+        return drf.response.Response(
+            {
+                "url": settings.LIVEKIT_URL,
+                "token": meet.room_token(str(document.id), identity, str(name)),
+            }
+        )
+
     @drf.decorators.action(detail=True, methods=["get"], url_path="media-check")
     def media_check(self, request, *args, **kwargs):
         """
@@ -3160,6 +3189,7 @@ class ConfigView(drf.views.APIView):
 
         dict_settings["theme_customization"] = self._load_theme_customization()
         dict_settings["RELEASE_VERSION"] = settings.RELEASE
+        dict_settings["MEET_ENABLED"] = meet.is_enabled()
 
         return drf.response.Response(dict_settings)
 

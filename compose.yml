@@ -266,6 +266,16 @@ services:
     ports:
       - "4000:3000"
 
+  livekit:
+    # SOV Meet's video server (open source, self-hosted). Dev mode: the
+    # key "devkey" and secret "secret", media over UDP 7882.
+    image: livekit/livekit-server:v1.9
+    command: --dev --bind 0.0.0.0 --node-ip 127.0.0.1
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+
 networks:
   lasuite:
     name: lasuite-network

@@ -20,6 +20,8 @@ import { useImport } from '@/docs/doc-management/hooks/useImport';
 import { useInfiniteDocChildren } from '@/docs/doc-tree/api/useDocChildren';
 import { DocGridContentList } from '@/docs/docs-grid/components/DocGridContentList';
 import { useSkeletonStore } from '@/features/skeletons';
+import { ChatIcon } from '@/features/sov-chat/components/ChatIcon';
+import { MeetIcon } from '@/features/sov-meet/components/MeetIcon';
 import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
@@ -135,6 +137,24 @@ export const FolderView = ({ doc }: FolderViewProps) => {
             onClick={() => create('note')}
           >
             {t('New note')}
+          </Button>
+          <Button
+            color="brand"
+            variant="secondary"
+            size="small"
+            icon={<ChatIcon size={18} />}
+            onClick={() => create('chat')}
+          >
+            {t('New chat')}
+          </Button>
+          <Button
+            color="brand"
+            variant="secondary"
+            size="small"
+            icon={<MeetIcon size={18} />}
+            onClick={() => create('meet')}
+          >
+            {t('New meeting')}
           </Button>
           <Button
             color="brand"

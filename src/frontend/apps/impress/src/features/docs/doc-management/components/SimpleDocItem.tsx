@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
+import { ChatIcon } from '@/features/sov-chat/components/ChatIcon';
+import { MeetIcon } from '@/features/sov-meet/components/MeetIcon';
 import { NotesIcon } from '@/features/sov-notes/components/NotesIcon';
 import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
 import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
@@ -75,6 +77,18 @@ export const SimpleDocItem = ({
           icon={<SlidesIcon size={isSmallMobile ? 35 : 40} />}
           $shrink="0"
           data-testid="doc-slide-icon"
+        />
+      ) : doc.kind === 'chat' ? (
+        <Icon
+          icon={<ChatIcon size={isSmallMobile ? 35 : 40} />}
+          $shrink="0"
+          data-testid="doc-chat-icon"
+        />
+      ) : doc.kind === 'meet' ? (
+        <Icon
+          icon={<MeetIcon size={isSmallMobile ? 35 : 40} />}
+          $shrink="0"
+          data-testid="doc-meet-icon"
         />
       ) : doc.kind === 'note' ? (
         <Icon

@@ -330,7 +330,7 @@ class MainWindow(QMainWindow):
 
     def new_document(self, kind: str = "doc"):
         if not use_local():
-            query = f"?kind={kind}" if kind in ("sheet", "slide", "note", "folder") else ""
+            query = f"?kind={kind}" if kind in ("sheet", "slide", "note", "chat", "meet", "folder") else ""
             self.view.load(QUrl(server_url() + "/docs/new/" + query))
             return
         if kind == "folder":
@@ -486,6 +486,8 @@ class MainWindow(QMainWindow):
         self._action(file_menu, "New Spreadsheet", lambda: self.new_document("sheet"))
         self._action(file_menu, "New Slides", lambda: self.new_document("slide"))
         self._action(file_menu, "New Note", lambda: self.new_document("note"))
+        self._action(file_menu, "New Chat", lambda: self.new_document("chat"))
+        self._action(file_menu, "New Meeting", lambda: self.new_document("meet"))
         self._action(file_menu, "New Folder", lambda: self.new_document("folder"), "Ctrl+Alt+N")
         self._action(file_menu, "Open…", self.open_document, "Ctrl+O")
         self._action(file_menu, "Home", self.go_home, "Ctrl+Shift+H")

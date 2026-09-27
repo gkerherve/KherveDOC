@@ -48,9 +48,10 @@ export enum LinkRole {
 
 export type Base64 = string;
 
-/** A text document, a SOV Sheets spreadsheet, slides (a presentation), a note, or
+/** A text document, a SOV Sheets spreadsheet, slides (a presentation), a note, a chat, a meeting, or
  * a folder (which holds nothing but other documents: its children). */
-export type DocKind = 'doc' | 'sheet' | 'slide' | 'note' | 'folder';
+export type DocKind =
+  'doc' | 'sheet' | 'slide' | 'note' | 'chat' | 'meet' | 'folder';
 
 export interface Doc {
   id: string;

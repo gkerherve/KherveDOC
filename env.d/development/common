@@ -98,3 +98,8 @@ SEARCH_URL=http://find:8000/api/v1.0/documents/search/
 SEARCH_INDEXER_QUERY_LIMIT=50
 
 CONVERSION_UPLOAD_ENABLED=true
+
+# SOV Meet (LiveKit video server, see compose.yml)
+LIVEKIT_URL=ws://localhost:7880
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=secret

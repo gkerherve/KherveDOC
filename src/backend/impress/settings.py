@@ -937,6 +937,17 @@ class Base(Configuration):
     )
 
     # Y provider microservice
+    # SOV Meet: the LiveKit video server (open source, self-hosted).
+    LIVEKIT_URL = values.Value(
+        None, environ_name="LIVEKIT_URL", environ_prefix=None
+    )
+    LIVEKIT_API_KEY = values.Value(
+        None, environ_name="LIVEKIT_API_KEY", environ_prefix=None
+    )
+    LIVEKIT_API_SECRET = SecretFileValue(
+        None, environ_name="LIVEKIT_API_SECRET", environ_prefix=None
+    )
+
     Y_PROVIDER_API_KEY = SecretFileValue(
         environ_name="Y_PROVIDER_API_KEY",
         environ_prefix=None,
