@@ -409,3 +409,50 @@ def test_deleting_a_folder_moves_it_away(server, monkeypatch, tmp_path):
     assert (trash / "Old" / "Notes.kdoc").is_file()
     assert server.library.get(doc_id) is None
     assert server.library.folder(folder) is None
+
+
+def test_slides_and_the_examples_folder(tmp_path):
+    """Slides are documents like the others; the examples copy into an
+    Examples folder, as many times as asked (each copy its own ids)."""
+    from pathlib import Path
+
+    examples = Path(__file__).resolve().parents[2] / "backend" / "core" / "examples"
+    static = tmp_path / "web"
+    static.mkdir()
+    (static / "index.html").write_text("home")
+    library = Library(tmp_path / "data", tmp_path / "Documents")
+    srv = LocalServer(library, static, "5.7.0", port=0, examples_dir=examples)
+    srv.start()
+    try:
+        async def go():
+            api = srv.origin + "/api/v1.0/"
+            async with ClientSession() as s:
+                r = await s.post(api + "documents/", json={"kind": "slide"})
+                deck = await r.json()
+                assert deck["kind"] == "slide"
+                assert (tmp_path / "Documents" / "Untitled slides.kdoc").is_file()
+
+                r = await s.post(api + "documents/examples/")
+                assert r.status == 201
+                first = (await r.json())["id"]
+                inside = await (await s.get(api + f"documents/{first}/children/")).json()
+                assert [d["title"] for d in inside["results"]] == [
+                    "Documents", "Slides", "Spreadsheets"]
+                r = await s.post(api + "documents/examples/")
+                second = (await r.json())["id"]
+                assert second != first
+                assert (tmp_path / "Documents" / "Examples 2").is_dir()
+                listing = await (await s.get(api + "documents/?page_size=50")).json()
+                assert {d["title"] for d in listing["results"]} >= {"Examples", "Examples 2"}
+
+        run(go())
+        kinds = {}
+        for item in library.items():
+            kinds.setdefault(item["kind"], 0)
+            kinds[item["kind"]] += 1
+        expected = sum(1 for _ in examples.rglob("*.kdoc"))
+        assert kinds["doc"] + kinds["sheet"] + kinds["slide"] == 2 * expected + 1
+        ids = [i["id"] for i in library.items()]
+        assert len(ids) == len(set(ids))
+    finally:
+        srv.stop()

@@ -19,6 +19,7 @@ import {
   useTrans,
 } from '@/docs/doc-management';
 import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
+import { SlidesIcon } from '@/features/kherve-slides/components/SlidesIcon';
 import { useLeftPanelStore } from '@/features/left-panel';
 import { useResponsiveStore } from '@/stores';
 
@@ -260,6 +261,8 @@ const DocSubPageItemContent = (props: TreeViewNodeProps<Doc>) => {
               <FolderIcon size={16} />
             ) : doc.kind === 'sheet' ? (
               <SpreadsheetIcon size={16} />
+            ) : doc.kind === 'slide' ? (
+              <SlidesIcon size={16} />
             ) : (
               <SubPageIcon
                 color="var(--c--contextuals--content--semantic--info--tertiary)"

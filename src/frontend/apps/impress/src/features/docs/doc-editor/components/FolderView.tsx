@@ -16,11 +16,14 @@ import { KHERVE_TITLE_SLOT_ID } from '@/docs/doc-editor/components/KherveToolbar
 import { DocHeader } from '@/docs/doc-header/';
 import { Doc, DocKind, FolderIcon } from '@/docs/doc-management';
 import { useCreateChildDoc } from '@/docs/doc-management/api/useCreateChildDoc';
+import { useImport } from '@/docs/doc-management/hooks/useImport';
 import { useInfiniteDocChildren } from '@/docs/doc-tree/api/useDocChildren';
 import { DocGridContentList } from '@/docs/docs-grid/components/DocGridContentList';
 import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
+import { SlidesIcon } from '@/features/kherve-slides/components/SlidesIcon';
 import { useSkeletonStore } from '@/features/skeletons';
 import PlusIcon from '@/icons/doc-plus.svg';
+import UploadIcon from '@/icons/upload-arrow.svg';
 import { useResponsiveStore } from '@/stores';
 
 interface FolderViewProps {
@@ -57,6 +60,13 @@ export const FolderView = ({ doc }: FolderViewProps) => {
     },
   });
   const canCreate = doc.abilities.children_create && !doc.deleted_at;
+  // Word, Excel, PowerPoint or Markdown files, into this folder.
+  const { open: openImport, getInputProps } = useImport({
+    parentId: doc.id,
+    onImportSuccess: (child) => {
+      void router.push(`/docs/${child.id}`);
+    },
+  });
   const create = (kind: DocKind) => {
     if (!isPending) {
       createChild({
@@ -111,11 +121,30 @@ export const FolderView = ({ doc }: FolderViewProps) => {
             color="brand"
             variant="secondary"
             size="small"
+            icon={<SlidesIcon size={18} />}
+            onClick={() => create('slide')}
+          >
+            {t('New slides')}
+          </Button>
+          <Button
+            color="brand"
+            variant="secondary"
+            size="small"
             icon={<FolderIcon size={18} />}
             onClick={() => create('folder')}
           >
             {t('New folder')}
           </Button>
+          <Button
+            color="neutral"
+            variant="tertiary"
+            size="small"
+            icon={<UploadIcon aria-hidden="true" width={18} height={18} />}
+            onClick={openImport}
+          >
+            {t('Import a file')}
+          </Button>
+          <input {...getInputProps()} />
         </Box>
       )}
       {children.length > 0 ? (

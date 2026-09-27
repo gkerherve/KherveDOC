@@ -102,8 +102,11 @@ class LocalServer:
     def __init__(self, library: Library, static_dir: Path,
                  app_version: str, port: int = DEFAULT_PORT,
                  pyodide_dir: Path | None = None,
-                 bundled_pyodide: Path | None = None):
+                 bundled_pyodide: Path | None = None,
+                 examples_dir: Path | None = None):
         self.library = library
+        #: The examples shipped with the app (see bin/make-examples.py).
+        self.examples_dir = examples_dir
         self.pyodide_dir = Path(pyodide_dir or library.data_dir / "pyodide-0.28.3")
         self.bundled_pyodide = bundled_pyodide
         self._fetching: dict[str, asyncio.Lock] = {}
@@ -213,6 +216,7 @@ class LocalServer:
         r.add_patch(API + "users/{uid}/", self.update_user)
         r.add_get(API + "documents/", self.list_docs)
         r.add_post(API + "documents/", self.create_doc)
+        r.add_post(API + "documents/examples/", self.add_examples)
         r.add_get(API + "documents/search/", self.search_docs)
         r.add_get(API + "documents/{id}/", self.get_doc)
         r.add_patch(API + "documents/{id}/", self.update_doc)
@@ -367,9 +371,7 @@ class LocalServer:
             self._meta(folder_id)   # a document: 404 if unknown, else empty
             return self._page(request, [], items)
         entries = [e for e in items if e.get("parent") == folder_id]
-        # Folders first, then by name, as in the Finder.
-        entries.sort(key=lambda e: (e.get("kind") != FOLDER,
-                                    (e.get("title") or "").lower()))
+        entries.sort(key=finder_order)
         return self._page(request, entries, items, ordering="finder")
 
     async def search_docs(self, request: web.Request) -> web.Response:
@@ -395,6 +397,17 @@ class LocalServer:
         except KeyError:
             raise self._not_found()
         return web.json_response(self._json(self._item(item_id)), status=201)
+
+    async def add_examples(self, request: web.Request) -> web.Response:
+        """An "Examples" folder in the documents folder: documents,
+        spreadsheets and slides to learn from."""
+        if not self.examples_dir or not Path(self.examples_dir).is_dir():
+            raise web.HTTPNotFound(
+                text=json.dumps({"detail": "No examples in this app."}),
+                content_type="application/json")
+        folder_id = self.library.add_examples(Path(self.examples_dir))
+        return web.json_response({"id": folder_id, "title": "Examples"},
+                                 status=201)
 
     async def create_doc(self, request: web.Request) -> web.Response:
         return await self._create(request, None)
@@ -551,8 +564,7 @@ class LocalServer:
             if meta["id"] in chain[:-1] or (meta["id"] == item_id
                                             and meta.get("kind") == FOLDER):
                 inside = [i for i in items if i.get("parent") == meta["id"]]
-                inside.sort(key=lambda i: (i.get("kind") != FOLDER,
-                                           (i.get("title") or "").lower()))
+                inside.sort(key=finder_order)
                 out["children"] = [node(child, depth + 1,
                                         path + f"{n + 1:07d}")
                                    for n, child in enumerate(inside)]
@@ -663,6 +675,13 @@ class LocalServer:
             room.leave(client)
             room.flush()
         return sock
+
+
+def finder_order(item: dict):
+    """Folders first, then by file name, as the Finder lists them (so
+    "01 Welcome…" comes before "02 …")."""
+    name = Path(item.get("path") or "").name or item.get("title") or ""
+    return (item.get("kind") != FOLDER, name.lower())
 
 
 def _move_to_trash(path: Path) -> bool:

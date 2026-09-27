@@ -44,6 +44,7 @@ import {
   useComments,
 } from '@/docs/doc-comments';
 import { DocsFindReplaceStyle } from '@/docs/doc-find-replace/styles';
+import { usePendingTextImport } from '@/docs/doc-import/usePendingTextImport';
 import { Doc } from '@/docs/doc-management';
 import { avatarUrlFromName, useAuth } from '@/features/auth';
 import { useRightPanelStore } from '@/features/right-panel/stores/useRightPanelStore';
@@ -342,6 +343,9 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
   useShortcuts(editor, refEditorContainer.current);
 
   useUploadStatus(editor);
+
+  // A Word / Markdown file chosen with "Import a file…".
+  usePendingTextImport(editor, doc.id, uploadFile);
 
   useScrollToBlockAnchor();
 

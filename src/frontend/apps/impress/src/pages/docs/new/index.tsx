@@ -27,7 +27,9 @@ const Page: NextPageWithLayout = () => {
   const title = searchParams.get('title');
   const kindParam = searchParams.get('kind');
   const kind =
-    kindParam === 'sheet' || kindParam === 'folder' ? kindParam : undefined;
+    kindParam === 'sheet' || kindParam === 'slide' || kindParam === 'folder'
+      ? kindParam
+      : undefined;
   const { authenticated } = useAuth();
 
   const { mutateAsync: createDocAsync, data: doc } = useCreateDoc();

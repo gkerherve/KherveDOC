@@ -9,6 +9,7 @@ import { css } from 'styled-components';
 
 import { Box, StyledLink, Text } from '@/components';
 import { FolderIcon, useDocs, useTrans } from '@/docs/doc-management';
+import { useAddExamples } from '@/docs/doc-management/api/useAddExamples';
 import { useLeftPanelStore } from '@/features/left-panel/stores/useLeftPanelStore';
 import PlusIcon from '@/icons/doc-plus.svg';
 import { useResponsiveStore } from '@/stores/useResponsiveStore';
@@ -18,9 +19,14 @@ export const LeftPanelFolders = () => {
   const router = useRouter();
   const { isMobile } = useResponsiveStore();
   const { closePanel } = useLeftPanelStore();
-  const { untitledDocument } = useTrans();
+  const { untitledOf } = useTrans();
   const { data } = useDocs({ page: 1, kind: 'folder', ordering: 'title' });
   const folders = data?.results ?? [];
+  const { mutate: addExamples, isPending } = useAddExamples({
+    onSuccess: (id) => {
+      void router.push(`/docs/${id}`);
+    },
+  });
 
   const onOpen = () => {
     if (isMobile) {
@@ -57,6 +63,19 @@ export const LeftPanelFolders = () => {
           }}
         />
       </Box>
+      {data && folders.length === 0 && (
+        <Button
+          size="small"
+          color="neutral"
+          variant="tertiary"
+          disabled={isPending}
+          data-testid="left-panel-add-examples"
+          icon={<FolderIcon size={18} />}
+          onClick={() => addExamples()}
+        >
+          {t('Add the examples folder')}
+        </Button>
+      )}
       {folders.map((folder) => (
         <StyledLink
           key={folder.id}
@@ -81,7 +100,7 @@ export const LeftPanelFolders = () => {
             $size="sm"
             $css="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
           >
-            {folder.title || untitledDocument}
+            {folder.title || untitledOf('folder')}
           </Text>
         </StyledLink>
       ))}

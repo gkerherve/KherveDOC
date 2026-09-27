@@ -31,6 +31,8 @@ a = Analysis(
         (str(PKG / "icon.png"), "khervedoc_desktop"),
         (str(PKG / "local" / "config_template.json"), "khervedoc_desktop/local"),
         (str(WEB), "web"),
+        # Documents, spreadsheets and slides to learn from (bin/make-examples.py).
+        (str(ROOT.parent / "backend" / "core" / "examples"), "examples"),
         # Spreadsheets offline from the first launch (bin/fetch-desktop-pyodide.py).
         *([(str(ROOT / "pyodide"), "pyodide")]
           if (ROOT / "pyodide" / "pyodide.js").is_file() else []),

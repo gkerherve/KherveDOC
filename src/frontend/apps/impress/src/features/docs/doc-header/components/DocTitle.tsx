@@ -38,11 +38,11 @@ export const DocTitle = ({ doc, onTitleUpdate }: DocTitleProps) => {
 export const DocTitleText = () => {
   const { isMobile } = useResponsiveStore();
   const { currentDoc } = useDocStore();
-  const { untitledDocument } = useTrans();
+  const { untitledOf } = useTrans();
   const { emoji, titleWithoutEmoji } = getEmojiAndTitle(
     currentDoc?.title ?? '',
   );
-  const displayTitle = titleWithoutEmoji || untitledDocument;
+  const displayTitle = titleWithoutEmoji || untitledOf(currentDoc?.kind);
 
   return (
     <Box className={CLASS_DOC_TITLE} $direction="row" $align="center">
@@ -113,7 +113,8 @@ const DocTitleInput = ({ doc, onTitleUpdate }: DocTitleProps) => {
   const { isSmallMobile } = useResponsiveStore();
   const { t } = useTranslation();
   const { isTopRoot } = useDocUtils(doc);
-  const { untitledDocument } = useTrans();
+  const { untitledOf } = useTrans();
+  const untitledDocument = untitledOf(doc.kind);
   const { emoji, titleWithoutEmoji } = getEmojiAndTitle(doc.title ?? '');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [titleDisplay, setTitleDisplay] = useState(

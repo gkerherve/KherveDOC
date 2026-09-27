@@ -123,7 +123,7 @@ const DocPage = ({ id }: DocProps) => {
   const { replace, asPath } = useRouter();
   const { t } = useTranslation();
   const { authenticated } = useAuth();
-  const { untitledDocument } = useTrans();
+  const { untitledOf } = useTrans();
 
   /**
    * Show skeleton when loading a document
@@ -222,11 +222,11 @@ const DocPage = ({ id }: DocProps) => {
     <>
       <Head>
         <title>
-          {doc.title || untitledDocument} - {t('Docs')}
+          {doc.title || untitledOf(doc.kind)} - {t('Docs')}
         </title>
         <meta
           property="og:title"
-          content={`${doc.title || untitledDocument} - ${t('Docs')}`}
+          content={`${doc.title || untitledOf(doc.kind)} - ${t('Docs')}`}
           key="title"
         />
       </Head>

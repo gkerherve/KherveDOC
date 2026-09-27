@@ -3,6 +3,7 @@ import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
 import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
+import { SlidesIcon } from '@/features/kherve-slides/components/SlidesIcon';
 import { useDate } from '@/hooks/useDate';
 import DocsIcon from '@/icons/Docs.svg';
 import SubdocsIcon from '@/icons/Subdocs.svg';
@@ -39,16 +40,11 @@ export const SimpleDocItem = ({
 }: SimpleDocItemProps) => {
   const { t } = useTranslation();
   const { isSmallMobile } = useResponsiveStore();
-  const { untitledDocument } = useTrans();
+  const { untitledOf } = useTrans();
   const { isChild } = useDocUtils(doc);
   const { relativeDate, formatDate } = useDate();
   const { emoji, titleWithoutEmoji } = getEmojiAndTitle(doc.title || '');
-  const untitled =
-    doc.kind === 'folder'
-      ? t('Untitled folder')
-      : doc.kind === 'sheet'
-        ? t('Untitled spreadsheet')
-        : untitledDocument;
+  const untitled = untitledOf(doc.kind);
   const docTitle = titleWithoutEmoji || untitled;
   const docRelativeUpdate = relativeDate(doc.updated_at);
   const itemAriaLabel = `${t('Open document {{title}}', { title: docTitle })}. ${t(
@@ -72,6 +68,12 @@ export const SimpleDocItem = ({
           icon={<FolderIcon size={isSmallMobile ? 35 : 40} />}
           $shrink="0"
           data-testid="doc-folder-icon"
+        />
+      ) : doc.kind === 'slide' ? (
+        <Icon
+          icon={<SlidesIcon size={isSmallMobile ? 35 : 40} />}
+          $shrink="0"
+          data-testid="doc-slide-icon"
         />
       ) : doc.kind === 'sheet' ? (
         <Icon

@@ -46,6 +46,18 @@ def web_version(folder: Path) -> str:
         return "0"
 
 
+def examples_dir() -> Path | None:
+    """The examples shipped with the app (made by bin/make-examples.py)."""
+    if env := os.environ.get("KHERVEDOC_EXAMPLES_DIR"):
+        return Path(env)
+    if getattr(sys, "frozen", False):
+        folder = web_dir().parent / "examples"
+    else:
+        folder = (Path(__file__).resolve().parents[2]
+                  / "backend" / "core" / "examples")
+    return folder if folder.is_dir() else None
+
+
 def documents_dir() -> Path:
     if env := os.environ.get("KHERVEDOC_DOCUMENTS_DIR"):
         return Path(env)
@@ -71,7 +83,8 @@ def start() -> LocalServer:
         folder = web_dir()
         _library = Library(data_dir(), documents_dir())
         _server = LocalServer(_library, folder, web_version(folder),
-                              bundled_pyodide=pyodide_dir())
+                              bundled_pyodide=pyodide_dir(),
+                              examples_dir=examples_dir())
         _server.start()
     return _server
 

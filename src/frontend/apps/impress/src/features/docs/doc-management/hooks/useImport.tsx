@@ -1,102 +1,147 @@
 import { VariantType, useToastProvider } from '@gouvfr-lasuite/ui-components';
 import { t } from 'i18next';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 
-import { useConfig } from '@/core';
+import { setPendingImport } from '@/docs/doc-import/pendingImport';
 
-import { ContentTypes, useImportDoc } from '../api/useImportDoc';
-import { Doc } from '../types';
+import { createChildDoc } from '../api/useCreateChildDoc';
+import { useCreateDoc } from '../api/useCreateDoc';
+import { Doc, DocKind } from '../types';
 
 interface UseImportProps {
   onDragOver?: (isDragOver: boolean) => void;
   onImportSuccess?: (doc: Doc) => void;
+  /** Import into this folder (else at the top level). */
+  parentId?: string;
 }
 
 interface AcceptedMap {
   [mime: string]: string[];
 }
 
-export const useImport = ({ onDragOver, onImportSuccess }: UseImportProps) => {
+/**
+ * Files KherveDOC reads in the browser (also in the desktop app, offline):
+ * each becomes a new document of its kind, which reads the file once open
+ * (see doc-import/).
+ */
+const CLIENT_TYPES: { mime: string; extensions: string[]; kind: DocKind }[] = [
+  {
+    mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    extensions: ['.docx'],
+    kind: 'doc',
+  },
+  { mime: 'text/markdown', extensions: ['.md', '.markdown'], kind: 'doc' },
+  { mime: 'text/plain', extensions: ['.txt'], kind: 'doc' },
+  {
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    extensions: ['.xlsx'],
+    kind: 'sheet',
+  },
+  {
+    mime: 'application/vnd.ms-excel.sheet.macroEnabled.12',
+    extensions: ['.xlsm'],
+    kind: 'sheet',
+  },
+  {
+    mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    extensions: ['.pptx'],
+    kind: 'slide',
+  },
+];
+
+const extensionOf = (name: string) =>
+  `.${name.split('.').pop()?.toLowerCase()}`;
+
+export const kindOfFile = (name: string): DocKind | undefined =>
+  CLIENT_TYPES.find((type) => type.extensions.includes(extensionOf(name)))
+    ?.kind;
+
+export const IMPORT_EXTENSIONS = CLIENT_TYPES.flatMap(
+  (type) => type.extensions,
+);
+
+export const useImport = ({
+  onDragOver,
+  onImportSuccess,
+  parentId,
+}: UseImportProps) => {
   const { toast } = useToastProvider();
-  const { data: config } = useConfig();
-
-  const MAX_FILE_SIZE = useMemo(() => {
-    const maxSizeInBytes = config?.CONVERSION_FILE_MAX_SIZE ?? 10 * 1024 * 1024; // Default to 10MB
-
-    const units = ['bytes', 'KB', 'MB', 'GB'];
-    let size = maxSizeInBytes;
-    let unitIndex = 0;
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex += 1;
-    }
-
-    return {
-      bytes: maxSizeInBytes,
-      text: `${Math.round(size * 10) / 10}${units[unitIndex]}`,
-    };
-  }, [config?.CONVERSION_FILE_MAX_SIZE]);
+  const [isCreating, setIsCreating] = useState(false);
+  const { mutateAsync: createDoc } = useCreateDoc();
 
   const ACCEPT = useMemo((): AcceptedMap => {
-    const allowedExtensions = config?.CONVERSION_FILE_EXTENSIONS_ALLOWED?.map(
-      (ext: string) => ext.toLowerCase(),
-    ) ?? ['.docx', '.md'];
-
-    return Object.values(ContentTypes).reduce(
-      (acc: AcceptedMap, contentType) => {
-        const matchedExtensions = contentType.extensions.filter((ext: string) =>
-          allowedExtensions.includes(ext),
-        );
-
-        if (matchedExtensions.length > 0) {
-          acc[contentType.mime] = matchedExtensions;
-        }
-
-        return acc;
-      },
-      {},
-    );
-  }, [config?.CONVERSION_FILE_EXTENSIONS_ALLOWED]);
+    const accept: AcceptedMap = {};
+    for (const type of CLIENT_TYPES) {
+      accept[type.mime] = [...(accept[type.mime] ?? []), ...type.extensions];
+    }
+    return accept;
+  }, []);
 
   const toastInvalidFileType = useCallback(
     (fileName: string) => {
-      const allowedExtensions = Object.values(ACCEPT).flat().join(', ');
       toast(
         t(
-          allowedExtensions
-            ? `The document "{{documentName}}" import has failed (only {{allowedExtensions}} files are allowed)`
-            : `The document "{{documentName}}" import has failed`,
+          `The document "{{documentName}}" import has failed (only {{allowedExtensions}} files are allowed)`,
           {
             documentName: fileName,
-            allowedExtensions,
+            allowedExtensions: IMPORT_EXTENSIONS.join(', '),
           },
         ),
         VariantType.ERROR,
       );
     },
-    [ACCEPT, toast],
+    [toast],
+  );
+
+  /**
+   * A new document of the file's kind, which reads the file once open.
+   * Everything is read in the browser (so also in the desktop app,
+   * offline): it keeps Word headings, lists, tables and pictures.
+   */
+  const importInBrowser = useCallback(
+    async (file: File, kind: DocKind) => {
+      setIsCreating(true);
+      try {
+        const title = file.name.replace(/\.[^.]+$/, '');
+        const doc = parentId
+          ? await createChildDoc({ parentId, title, kind })
+          : await createDoc({ title, kind });
+        setPendingImport(doc.id, file);
+        onImportSuccess?.(doc);
+      } catch {
+        toast(
+          t('The document "{{documentName}}" import has failed', {
+            documentName: file.name,
+          }),
+          VariantType.ERROR,
+        );
+      } finally {
+        setIsCreating(false);
+      }
+    },
+    [createDoc, onImportSuccess, parentId, toast],
+  );
+
+  const importFiles = useCallback(
+    (files: File[]) => {
+      for (const file of files) {
+        const kind = kindOfFile(file.name);
+        if (kind) {
+          void importInBrowser(file, kind);
+        } else {
+          toastInvalidFileType(file.name);
+        }
+      }
+    },
+    [importInBrowser, toastInvalidFileType],
   );
 
   const { getRootProps, getInputProps, open } = useDropzone({
     accept: ACCEPT,
-    maxSize: MAX_FILE_SIZE.bytes,
     onDrop(acceptedFiles) {
       onDragOver?.(false);
-      const allowedExtensions = Object.values(ACCEPT).flat();
-      for (const file of acceptedFiles) {
-        const ext = `.${file.name.split('.').pop()?.toLowerCase()}`;
-        if (!allowedExtensions.includes(ext)) {
-          toastInvalidFileType(file.name);
-          continue;
-        }
-        importDoc([file, file.type], {
-          onSuccess: (doc: Doc) => {
-            onImportSuccess?.(doc);
-          },
-        });
-      }
+      importFiles(acceptedFiles);
     },
     onDragEnter: () => {
       onDragOver?.(true);
@@ -106,36 +151,19 @@ export const useImport = ({ onDragOver, onImportSuccess }: UseImportProps) => {
     },
     onDropRejected(fileRejections) {
       fileRejections.forEach((rejection) => {
-        const isFileTooLarge = rejection.errors.some(
-          (error) => error.code === 'file-too-large',
-        );
-
-        if (isFileTooLarge) {
-          toast(
-            t(
-              'The document "{{documentName}}" is too large. Maximum file size is {{maxFileSize}}.',
-              {
-                documentName: rejection.file.name,
-                maxFileSize: MAX_FILE_SIZE.text,
-              },
-            ),
-            VariantType.ERROR,
-          );
-        } else {
-          toastInvalidFileType(rejection.file.name);
-        }
+        toastInvalidFileType(rejection.file.name);
       });
     },
     noClick: true,
     noKeyboard: true,
   });
-  const { mutate: importDoc, isPending } = useImportDoc();
 
   return {
     getRootProps,
     getInputProps,
     open,
-    isEnabled: config?.CONVERSION_UPLOAD_ENABLED || false,
-    isPending,
+    // Word, Excel, PowerPoint and Markdown are read in the browser.
+    isEnabled: true,
+    isPending: isCreating,
   };
 };

@@ -44,7 +44,22 @@ const nextConfig = {
       },
     },
   },
-  webpack(config, { isServer }) {
+  webpack(config, { isServer, webpack }) {
+    if (!isServer) {
+      // PptxGenJS (PowerPoint export) also carries Node-only code paths
+      // (node:fs, node:https) that a browser never takes: leave them out.
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:(fs|https)$/, (resource) => {
+          resource.request = resource.request.replace(/^node:/, '');
+        }),
+      );
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        https: false,
+      };
+    }
+
     // Grab the existing rule that handles SVG imports
     const fileLoaderRule = config.module.rules.find((rule) =>
       rule.test?.test?.('.svg'),

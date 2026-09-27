@@ -110,8 +110,9 @@ const DocToolBoxComponent = ({
   onOpenChange,
   optionsDefault,
 }: DocToolBoxProps) => {
-  // Spreadsheets and folders have no text to present, print, export or diff.
-  const hasNoText = doc.kind === 'sheet' || doc.kind === 'folder';
+  // Spreadsheets, slides and folders have no text to present, print,
+  // export or diff (slides have their own presenting and export).
+  const hasNoText = !!doc.kind && doc.kind !== 'doc';
   const { t } = useTranslation();
   const { untitledDocument } = useTrans();
   const treeContext = useTreeContextOrNull<Doc | null>();

@@ -19,6 +19,7 @@ import type { DropdownMenuOption } from '@/components';
 import type { Menu } from '@/docs/doc-editor/components/KherveToolbar/MenuBar';
 import { useNativeMenus } from '@/docs/doc-editor/components/KherveToolbar/nativeMenus';
 import { useStyleElement } from '@/docs/doc-editor/page-setup/useStyleElement';
+import { takePendingImport } from '@/docs/doc-import/pendingImport';
 
 import { useCellPresence, useSheetWorkbook } from '../hooks';
 import { currentRegion, rangeRef, suggestChart } from '../model/charts';
@@ -123,6 +124,7 @@ const SheetWorkbookView = ({
   workbook,
   version,
   provider,
+  synced,
   readOnly,
   userName,
   userColor,
@@ -750,6 +752,19 @@ const SheetWorkbookView = ({
       setNotice(String(error));
     }
   };
+
+  // An Excel file chosen with "Import a file…" before this document existed.
+  const pendingChecked = useRef(false);
+  useEffect(() => {
+    if (pendingChecked.current || readOnly || !synced || !activeId) {
+      return;
+    }
+    pendingChecked.current = true;
+    const file = takePendingImport(provider.configuration.name ?? '');
+    if (file) {
+      void importXlsx(file);
+    }
+  });
 
   const downloadXlsx = async () => {
     setNotice(t('Preparing the Excel file…'));

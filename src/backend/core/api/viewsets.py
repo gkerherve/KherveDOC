@@ -50,6 +50,7 @@ from treebeard.exceptions import InvalidMoveToDescendant
 
 from core import authentication, choices, enums, models
 from core.api.filters import remove_accents
+from core.services import examples as examples_service
 from core.services import mime_types
 from core.services.ai_services.blocknote import AIService
 from core.services.ai_services.legacy import get_legacy_ai_service
@@ -879,6 +880,21 @@ class DocumentViewSet(
             is_favorite=db.Value(True, output_field=db.BooleanField())
         )
         return self.get_response_for_queryset(queryset)
+
+    @drf.decorators.action(
+        detail=False,
+        methods=["post"],
+        url_path="examples",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def examples(self, request, *args, **kwargs):
+        """Add an "Examples" folder (documents, spreadsheets and slides to
+        learn from) to the user's documents."""
+        root = examples_service.create_examples(request.user)
+        return drf.response.Response(
+            {"id": str(root.id), "title": root.title},
+            status=drf.status.HTTP_201_CREATED,
+        )
 
     @drf.decorators.action(
         detail=False,

@@ -330,7 +330,7 @@ class MainWindow(QMainWindow):
 
     def new_document(self, kind: str = "doc"):
         if not use_local():
-            query = f"?kind={kind}" if kind in ("sheet", "folder") else ""
+            query = f"?kind={kind}" if kind in ("sheet", "slide", "folder") else ""
             self.view.load(QUrl(server_url() + "/docs/new/" + query))
             return
         if kind == "folder":
@@ -345,6 +345,20 @@ class MainWindow(QMainWindow):
             self.view.load(target)
         else:
             open_window(target)
+
+    def add_examples(self):
+        """Copy the examples (documents, spreadsheets, slides) into
+        ~/Documents/KherveDOC and show them."""
+        server, library = local_mode.server(), local_mode.library()
+        source = local_mode.examples_dir()
+        if server is None or library is None or source is None:
+            return
+        try:
+            folder = server.call(library.add_examples, source)
+        except OSError as exc:
+            QMessageBox.warning(self, APP_NAME, f"The examples could not be added: {exc}")
+            return
+        self.view.load(QUrl(server.doc_url(folder)))
 
     def open_document(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -470,6 +484,7 @@ class MainWindow(QMainWindow):
         file_menu = bar.addMenu("&File")
         self._action(file_menu, "New Document", lambda: self.new_document("doc"), "Ctrl+N")
         self._action(file_menu, "New Spreadsheet", lambda: self.new_document("sheet"))
+        self._action(file_menu, "New Slides", lambda: self.new_document("slide"))
         self._action(file_menu, "New Folder", lambda: self.new_document("folder"), "Ctrl+Alt+N")
         self._action(file_menu, "Open…", self.open_document, "Ctrl+O")
         self._action(file_menu, "Home", self.go_home, "Ctrl+Shift+H")
@@ -536,6 +551,8 @@ class MainWindow(QMainWindow):
         self._action(help_menu, "About KherveDOC", self._about, role=Role.AboutRole)
         self._action(help_menu, "Check for Updates…", check_for_updates,
                      role=Role.ApplicationSpecificRole)
+        if local_mode.examples_dir() is not None:
+            self._action(help_menu, "Add the Examples Folder", self.add_examples)
 
         # The open document's File, Edit, View, Insert, Format, Tools and
         # Help items join these menus (see native_menus.py).
@@ -814,6 +831,18 @@ class Application(QApplication):
         return super().event(e)
 
 
+def _add_examples_once() -> None:
+    """The first time the app runs, ~/Documents/KherveDOC gets an Examples
+    folder (Help ▸ Add the Examples Folder adds it again)."""
+    settings = QSettings()
+    library, source = local_mode.library(), local_mode.examples_dir()
+    if settings.value("examplesAdded", False, type=bool) or not library or not source:
+        return
+    if not (library.documents_dir / "Examples").exists():
+        library.add_examples(source)
+    settings.setValue("examplesAdded", True)
+
+
 def main() -> int:
     global _profile
     QApplication.setApplicationName(APP_NAME)
@@ -833,6 +862,7 @@ def main() -> int:
         splash.step("Opening your documents")
         try:
             local_mode.start()
+            _add_examples_once()
         except Exception as exc:  # the app still works with a server
             QMessageBox.warning(None, APP_NAME,
                                 f"Documents on this Mac are unavailable: {exc}")

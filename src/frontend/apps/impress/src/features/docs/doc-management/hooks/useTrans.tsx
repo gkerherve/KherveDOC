@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { DocDefaultFilter, Role } from '../types';
+import { DocDefaultFilter, DocKind, Role } from '../types';
 
 export const useTrans = () => {
   const { t } = useTranslation();
@@ -28,6 +28,14 @@ export const useTrans = () => {
       return translatedFilters[filter];
     },
     untitledDocument: t('Untitled document'),
+    /** What an item without a title is called, by kind. */
+    untitledOf: (kind?: DocKind) =>
+      ({
+        doc: t('Untitled document'),
+        sheet: t('Untitled spreadsheet'),
+        slide: t('Untitled slides'),
+        folder: t('Untitled folder'),
+      })[kind ?? 'doc'],
     translatedRoles,
     translatedFilters,
   };

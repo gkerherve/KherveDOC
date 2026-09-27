@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Text } from '@/components';
 import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
+import { SlidesIcon } from '@/features/kherve-slides/components/SlidesIcon';
 import { useLeftPanelStore } from '@/features/left-panel/stores/useLeftPanelStore';
 import ArrowDownIcon from '@/icons/arrow-drop-down.svg';
 import SubDocIcon from '@/icons/doc-new-subdoc.svg';
@@ -17,6 +18,7 @@ import PlusIcon from '@/icons/doc-plus.svg';
 import UploadIcon from '@/icons/upload-arrow.svg';
 import { useResponsiveStore } from '@/stores/useResponsiveStore';
 
+import { useAddExamples } from '../api/useAddExamples';
 import { useCreateChildDoc } from '../api/useCreateChildDoc';
 import { useImport } from '../hooks/useImport';
 import { useDocStore } from '../stores/useDocStore';
@@ -91,6 +93,15 @@ export function DropdownArrow() {
     },
   });
 
+  const { mutate: addExamples } = useAddExamples({
+    onSuccess: (id) => {
+      void router.push(`/docs/${id}`);
+      if (isMobile) {
+        closePanel();
+      }
+    },
+  });
+
   const toggleMenu = useCallback(() => {
     setIsMenuOpen((open) => !open);
   }, []);
@@ -120,6 +131,16 @@ export function DropdownArrow() {
         },
       },
       {
+        label: t('New slides'),
+        icon: <SlidesIcon />,
+        callback: () => {
+          void router.push('/docs/new?kind=slide');
+          if (isMobile) {
+            closePanel();
+          }
+        },
+      },
+      {
         label: t('New folder'),
         icon: <FolderIcon />,
         callback: () => {
@@ -135,6 +156,12 @@ export function DropdownArrow() {
         callback: openImport,
         isHidden: !isImportEnabled || !!currentDoc,
       },
+      {
+        label: t('Add the examples folder'),
+        icon: <FolderIcon />,
+        callback: () => addExamples(),
+        isHidden: !!currentDoc,
+      },
     ],
     [
       t,
@@ -142,6 +169,7 @@ export function DropdownArrow() {
       currentDoc,
       createChildDoc,
       isImportEnabled,
+      addExamples,
       router,
       isMobile,
       closePanel,

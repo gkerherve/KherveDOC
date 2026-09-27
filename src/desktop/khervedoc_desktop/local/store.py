@@ -35,7 +35,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 EXTENSION = ".kdoc"
-KINDS = ("doc", "sheet")
+KINDS = ("doc", "sheet", "slide")
+UNTITLED = {"doc": "Untitled document", "sheet": "Untitled spreadsheet",
+            "slide": "Untitled slides"}
 FOLDER = "folder"
 FOLDER_MARK = ".kherve-folder"
 #: Where documents deleted without a system Trash go (see server.py).
@@ -357,6 +359,18 @@ class Library:
         self.move(item_id, new)
         return [item_id]
 
+    def add_examples(self, source: Path, name: str = "Examples") -> str:
+        """Copy the examples (a folder of .kdoc files in sub-folders) into
+        the documents folder; returns the new folder's id. The copies get
+        ids of their own, so the examples can be added more than once."""
+        self.documents_dir.mkdir(parents=True, exist_ok=True)
+        target = self._free_path(name, self.documents_dir, suffix="")
+        shutil.copytree(source, target, ignore=shutil.ignore_patterns(".*"))
+        for path in sorted(target.rglob("*" + EXTENSION)):
+            DocFile(path).update_meta(id=str(uuid.uuid4()))
+        self.scan()
+        return self._folder_id(target)
+
     def forget_folder(self, folder_id: str) -> None:
         """Forget a folder and everything in it (it went to the Trash)."""
         docs, folders = self.inside(folder_id)
@@ -408,8 +422,7 @@ class Library:
             return self.create_folder(title, parent)
         if kind not in KINDS:
             kind = "doc"
-        default = "Untitled spreadsheet" if kind == "sheet" \
-            else "Untitled document"
+        default = UNTITLED[kind]
         base = self._container(parent)
         base.mkdir(parents=True, exist_ok=True)
         path = Path(path) if path else self._free_path(title or default, base)
@@ -452,7 +465,7 @@ class Library:
         path = file.path.resolve()
         root = self._root
         return ((path.parent == root or root in path.parents)
-                and re.fullmatch(r"Untitled (document|spreadsheet)( \d+)?",
+                and re.fullmatch(r"Untitled (document|spreadsheet|slides)( \d+)?",
                                  path.stem) is not None)
 
     def rename_to_title(self, doc_id: str, title: str) -> Path | None:

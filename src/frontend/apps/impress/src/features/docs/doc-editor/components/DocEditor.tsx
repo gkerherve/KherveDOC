@@ -14,6 +14,7 @@ import {
 } from '@/docs/doc-management';
 import { useAuth } from '@/features/auth/';
 import { SheetDocEditor } from '@/features/kherve-cell';
+import { SlideDocEditor } from '@/features/kherve-slides';
 import { SkeletonEditorCore, useSkeletonStore } from '@/features/skeletons';
 import { useSkeletonFadeOut } from '@/features/skeletons/hooks/useFadeOut';
 import { useAnalytics } from '@/libs';
@@ -147,6 +148,10 @@ const DocContentEditor = ({ doc }: DocEditorProps) => {
 
   if (doc.kind === 'sheet') {
     return <SheetDocEditor doc={doc} readOnly={readOnly} />;
+  }
+
+  if (doc.kind === 'slide') {
+    return <SlideDocEditor doc={doc} readOnly={readOnly} />;
   }
 
   return (
