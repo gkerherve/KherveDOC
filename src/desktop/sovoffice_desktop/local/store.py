@@ -34,6 +34,9 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
+
+from pycrdt import Doc
 
 #: Each kind of document has its own file extension, like .docx / .xlsx.
 EXTENSIONS = {"doc": ".sdoc", "sheet": ".ssheet", "slide": ".sslides",
@@ -42,6 +45,51 @@ EXTENSIONS = {"doc": ".sdoc", "sheet": ".ssheet", "slide": ".sslides",
 LEGACY_EXTENSION = ".kdoc"
 ALL_EXTENSIONS = (*EXTENSIONS.values(), LEGACY_EXTENSION)
 EXTENSION = EXTENSIONS["doc"]
+
+
+#: Words sync services (Dropbox, kDrive, Proton Drive, OneDrive, Nextcloud…)
+#: put in the name of the copy they make when two computers changed a file.
+CONFLICT_WORDS = ("conflict", "conflit", "konflikt", "conflitto", "conflicto")
+
+
+def is_conflict_copy(path: Path, original: Path) -> bool:
+    """Whether *path* is a sync service's conflict copy of *original*: in
+    the same folder, same extension, named after it with a conflict word."""
+    path, original = Path(path), Path(original)
+    if path.parent.resolve() != original.parent.resolve() \
+            or path.suffix.lower() != original.suffix.lower():
+        return False
+    stem, base = path.stem.lower(), original.stem.lower()
+    return (stem != base and stem.startswith(base[:max(1, len(base) - 1)])
+            and any(word in stem for word in CONFLICT_WORDS))
+
+
+def merge_contents(*contents: bytes) -> bytes:
+    """One Yjs document holding every change of each version: versions of a
+    document edited apart (on two computers) merge without losing any."""
+    doc = Doc()
+    for content in contents:
+        if content:
+            doc.apply_update(content)
+    return doc.get_update()
+
+
+def move_to_trash(path: Path) -> bool:
+    """The system Trash (Finder, Recycle Bin); a "Deleted" folder beside
+    the file if there is none."""
+    try:
+        from PySide6.QtCore import QFile
+        if QFile.moveToTrash(str(path)):
+            return True
+    except Exception:  # no Qt (tests) or no Trash on this volume
+        pass
+    deleted = Path(path).parent / DELETED
+    deleted.mkdir(exist_ok=True)
+    try:
+        os.replace(path, deleted / Path(path).name)
+        return True
+    except OSError:
+        return False
 
 
 def is_document_name(name: str) -> bool:
@@ -165,6 +213,31 @@ class DocFile:
         self._rewrite(meta=meta)
         return meta
 
+    def signature(self) -> tuple[int, int] | None:
+        """Changes whenever the file does (written here or synced in)."""
+        try:
+            stat = self.path.stat()
+        except OSError:
+            return None
+        return (stat.st_mtime_ns, stat.st_size)
+
+    def media_keys(self) -> set[str]:
+        with zipfile.ZipFile(self.path) as z:
+            return {n[len(MEDIA):] for n in z.namelist() if n.startswith(MEDIA)}
+
+    def merge_from(self, other: "DocFile") -> None:
+        """Take in another version of this document (its text and its
+        pictures), keeping every change of both."""
+        missing = {key: other.media(key) for key in other.media_keys() - self.media_keys()}
+        meta = self.meta()
+        meta["updated_at"] = now_iso()
+        self._rewrite(meta=meta, content=merge_contents(self.content(), other.content()),
+                      add_media={k: v for k, v in missing.items() if v is not None})
+
+    def put_media(self, key: str, data: bytes) -> None:
+        """Store a file under a key it already has (from another version)."""
+        self._rewrite(add_media={key: data})
+
     def add_media(self, filename: str, data: bytes) -> str:
         """Store a file; returns its key (unique, keeps the extension)."""
         suffix = Path(filename).suffix.lower()[:10]
@@ -188,6 +261,10 @@ class Library:
         self._lock = threading.RLock()
         self._paths: dict[str, str] = {}
         self._folders: dict[str, str] = {}
+        #: Takes in a sync service's conflict copy of an open document
+        #: (set by the local server); True when it did.
+        self.on_conflict: Callable[[str, DocFile], bool] | None = None
+        self.trash: Callable[[Path], bool] = move_to_trash
         if self._index_path.exists():
             try:
                 index = json.loads(self._index_path.read_text())
@@ -459,6 +536,10 @@ class Library:
         doc = DocFile(path)
         meta = doc.meta()
         doc_id = meta.get("id") or str(uuid.uuid4())
+        known = self._paths.get(doc_id)
+        if known and Path(known).exists() and is_conflict_copy(path, Path(known)):
+            self.take_in_conflict(doc_id, doc)
+            return doc_id
         with self._lock:
             known = self._paths.get(doc_id)
             if known and Path(known).resolve() != path \
@@ -470,6 +551,18 @@ class Library:
             self._paths[doc_id] = str(path)
             self._save_index()
         return doc_id
+
+    def take_in_conflict(self, doc_id: str, copy: DocFile) -> None:
+        """A sync service kept two versions of a document (the file and a
+        "conflicted copy"): merge the copy into the document, keeping
+        everyone's changes, and put the copy in the Trash."""
+        handled = self.on_conflict is not None and self.on_conflict(doc_id, copy)
+        if not handled:
+            original = self.get(doc_id)
+            if original is None:
+                return
+            original.merge_from(copy)
+        self.trash(copy.path)
 
     def is_auto_named(self, doc_id: str) -> bool:
         """Still "Untitled document…" in the documents folder (or a folder

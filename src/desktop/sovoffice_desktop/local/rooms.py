@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import zipfile
 from typing import Callable
 
 from pycrdt import (
@@ -24,7 +25,7 @@ from pycrdt import (
 )
 
 from . import hocuspocus as hp
-from .store import DocFile
+from .store import DocFile, is_conflict_copy, move_to_trash
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +58,9 @@ class Room:
         self.doc_id = doc_id
         self.file = file
         self.ydoc = Doc()
+        #: The file as last read or written here: when it differs, another
+        #: computer's changes came in (a shared kDrive / Dropbox folder).
+        self._signature = file.signature()
         content = file.content()
         if content:
             self.ydoc.apply_update(content)
@@ -89,9 +93,57 @@ class Room:
     def save(self) -> None:
         self._save_handle = None
         try:
+            # Changes synced in since the last look are merged, not lost.
+            self.check_file()
             self.file.write_content(self.state())
+            self._signature = self.file.signature()
         except OSError:
             log.exception("Could not save %s", self.file.path)
+
+    # ── The file changed on disk (shared folder) ─────────────────────
+    def check_file(self) -> None:
+        """Merge the file's changes if another computer's arrived (the
+        editors see them at once), and take in conflict copies."""
+        signature = self.file.signature()
+        if signature is not None and signature != self._signature:
+            try:
+                content = self.file.content()
+            except (OSError, KeyError, zipfile.BadZipFile):
+                return  # still being synced: next time
+            self._signature = signature
+            self._take_in(content)
+        folder = self.file.path.parent
+        try:
+            candidates = [p for p in folder.iterdir()
+                          if is_conflict_copy(p, self.file.path)]
+        except OSError:
+            return
+        for path in candidates:
+            copy = DocFile(path)
+            try:
+                if copy.meta().get("id") != self.doc_id:
+                    continue
+                self.take_in_copy(copy)
+            except (OSError, KeyError, ValueError, zipfile.BadZipFile):
+                continue
+            move_to_trash(path)
+
+    def take_in_copy(self, copy: DocFile) -> None:
+        """Another version of this document: merge its text now, and keep
+        its pictures in this document's file."""
+        self._take_in(copy.content())
+        missing = copy.media_keys() - self.file.media_keys()
+        for key in missing:
+            data = copy.media(key)
+            if data is not None:
+                self.file.put_media(key, data)
+        self._signature = self.file.signature()
+
+    def _take_in(self, content: bytes) -> None:
+        """Merge another version's changes: the editors get them (see
+        _on_update), and the merged document is saved."""
+        if content:
+            self.ydoc.apply_update(content)
 
     def flush(self) -> None:
         """Save now if a save is pending."""
@@ -168,6 +220,7 @@ class Rooms:
     def __init__(self, library):
         self.library = library
         self._rooms: dict[str, Room] = {}
+        library.on_conflict = self.take_in_conflict
 
     def get(self, doc_id: str) -> Room | None:
         room = self._rooms.get(doc_id)
@@ -185,6 +238,22 @@ class Rooms:
         if room is not None and file is not None:
             room.flush()
             room.file = file
+
+    def check_files(self) -> None:
+        """Look at the open documents' files (see Room.check_file)."""
+        for room in list(self._rooms.values()):
+            try:
+                room.check_file()
+            except Exception:  # one bad file must not stop the others
+                log.exception("Checking %s", room.file.path)
+
+    def take_in_conflict(self, doc_id: str, copy: DocFile) -> bool:
+        """Library.on_conflict: an open document merges the copy itself."""
+        room = self._rooms.get(doc_id)
+        if room is None:
+            return False
+        room.take_in_copy(copy)
+        return True
 
     def forget(self, doc_id: str) -> None:
         room = self._rooms.pop(doc_id, None)

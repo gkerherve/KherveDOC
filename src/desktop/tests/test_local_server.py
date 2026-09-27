@@ -5,6 +5,8 @@ import asyncio
 import base64
 import json
 import os
+import shutil
+from pathlib import Path
 
 import pytest
 from aiohttp import ClientSession
@@ -475,3 +477,107 @@ def test_slides_and_the_examples_folder(tmp_path):
         assert len(ids) == len(set(ids))
     finally:
         srv.stop()
+
+
+# ── Two computers sharing a folder (kDrive, Dropbox, Proton Drive…) ──
+def _edit(content: bytes, words: str) -> bytes:
+    """Another computer's edit: its own copy of the document, one more line."""
+    doc = Doc()
+    if content:
+        doc.apply_update(content)
+    text = doc.get("t", type=Text)
+    text += words
+    return doc.get_update()
+
+
+def _words(content: bytes) -> str:
+    doc = Doc()
+    doc.apply_update(content)
+    return str(doc.get("t", type=Text))
+
+
+def test_changes_synced_into_an_open_document_are_merged(tmp_path):
+    from sovoffice_desktop.local.rooms import Room
+
+    lib = Library(tmp_path / "data", tmp_path / "Shared")
+    doc_id = lib.create(title="Plan")
+    file = lib.get(doc_id)
+
+    async def go():
+        room = Room(doc_id, file)
+        room.ydoc.get("t", type=Text).insert(0, "France. ")
+        room.save()
+        # England edits its copy; the sync service brings the file back.
+        theirs = _edit(file.content(), "England. ")
+        os.utime(file.path, ns=(1, 1))  # a different signature, whatever the clock
+        file.write_content(theirs)
+        room.check_file()
+        # Both lines are in the open document, and saving keeps both.
+        mine = str(room.ydoc.get("t", type=Text))
+        assert "France. " in mine and "England. " in mine
+        room.ydoc.get("t", type=Text).insert(0, "More. ")
+        room.save()
+        saved = _words(file.content())
+        assert all(w in saved for w in ("France. ", "England. ", "More. "))
+
+    asyncio.run(go())
+
+
+def test_saving_never_overwrites_changes_synced_meanwhile(tmp_path):
+    from sovoffice_desktop.local.rooms import Room
+
+    lib = Library(tmp_path / "data", tmp_path / "Shared")
+    doc_id = lib.create(title="Plan")
+    file = lib.get(doc_id)
+
+    async def go():
+        room = Room(doc_id, file)
+        # The other computer's version lands before this one saves.
+        file.write_content(_edit(file.content(), "England. "))
+        os.utime(file.path, ns=(2, 2))
+        room.ydoc.get("t", type=Text).insert(0, "France. ")
+        room.save()
+        saved = _words(file.content())
+        assert "France. " in saved and "England. " in saved
+
+    asyncio.run(go())
+
+
+def test_conflict_copies_are_merged_and_put_away(tmp_path):
+    trashed = []
+    lib = Library(tmp_path / "data", tmp_path / "Shared")
+    lib.trash = lambda path: trashed.append(Path(path).name) or Path(path).unlink() or True
+    doc_id = lib.create(title="Budget", kind="sheet")
+    file = lib.get(doc_id)
+    base = _edit(file.content(), "")
+    file.write_content(_edit(base, "France. "))
+    # Both computers changed it: the sync service keeps England's version
+    # beside it, with the same document id.
+    copy = file.path.with_name("Budget (conflicted copy 2026-09-27).ssheet")
+    shutil.copy(file.path, copy)
+    DocFile(copy).write_content(_edit(base, "England. "))
+
+    lib.scan()
+    merged = _words(lib.get(doc_id).content())
+    assert "France. " in merged and "England. " in merged
+    assert trashed == ["Budget (conflicted copy 2026-09-27).ssheet"]
+    assert len([e for e in lib.entries() if e["kind"] == "sheet"]) == 1
+    # A copy made on purpose (not a conflict) stays a document of its own.
+    own = file.path.with_name("Budget copy.ssheet")
+    shutil.copy(file.path, own)
+    lib.scan()
+    assert len([e for e in lib.entries() if e["kind"] == "sheet"]) == 2
+
+
+def test_conflict_copy_names():
+    from sovoffice_desktop.local.store import is_conflict_copy
+    original = Path("/x/Budget.sdoc")
+    for name in ("Budget (conflicted copy).sdoc",
+                 "Budget (Ada's conflicted copy 2026-09-27).sdoc",
+                 "Budget (copie conflictuelle).sdoc",
+                 "Budget_conflict-20260927.sdoc",
+                 "Budget (Konflikt).sdoc"):
+        assert is_conflict_copy(Path("/x") / name, original), name
+    for name in ("Budget copy.sdoc", "Budget (conflicted copy).ssheet",
+                 "Other (conflicted copy).sdoc"):
+        assert not is_conflict_copy(Path("/x") / name, original), name

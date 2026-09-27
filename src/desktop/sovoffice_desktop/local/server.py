@@ -29,7 +29,7 @@ from pathlib import Path
 from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
 from .rooms import Client, Rooms
-from .store import FOLDER, Library, media_type, now_iso
+from .store import FOLDER, Library, media_type, move_to_trash, now_iso
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +38,8 @@ UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 DOC_PAGE = re.compile(rf"^/docs/({UUID})/?$")
 LOCAL_USER_ID = "00000000-0000-4000-8000-000000000001"
 DEFAULT_PORT = 38471
+#: How often open documents' files are checked for changes synced in (s).
+WATCH_S = 2.0
 #: Where Pyodide (the spreadsheets' Python) comes from the first time; the
 #: app keeps a copy, so spreadsheets then work offline.
 PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/"
@@ -170,7 +172,15 @@ class LocalServer:
             self._ready.set()
             return
         self._ready.set()
+        self._loop.call_later(WATCH_S, self._watch_files)
         self._loop.run_forever()
+
+    def _watch_files(self) -> None:
+        """Every few seconds: changes another computer made to an open
+        document (in a shared kDrive / Dropbox folder) are merged in."""
+        self.rooms.check_files()
+        if self._loop is not None and self._loop.is_running():
+            self._loop.call_later(WATCH_S, self._watch_files)
 
     def call(self, fn, *args, **kwargs):
         """Run *fn* on the server's loop (from the Qt thread) and wait."""
@@ -684,22 +694,7 @@ def finder_order(item: dict):
     return (item.get("kind") != FOLDER, name.lower())
 
 
-def _move_to_trash(path: Path) -> bool:
-    """The system Trash (Finder, Recycle Bin); a "Deleted" folder beside
-    the file if there is none."""
-    try:
-        from PySide6.QtCore import QFile
-        if QFile.moveToTrash(str(path)):
-            return True
-    except Exception:  # no Qt (tests) or no Trash on this volume
-        pass
-    deleted = path.parent / "Deleted"
-    deleted.mkdir(exist_ok=True)
-    try:
-        os.replace(path, deleted / path.name)
-        return True
-    except OSError:
-        return False
+_move_to_trash = move_to_trash
 
 
 def new_uuid() -> str:
