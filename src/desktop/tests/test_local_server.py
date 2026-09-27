@@ -151,15 +151,15 @@ def test_library_open_copy_and_move(tmp_path):
     lib = Library(tmp_path / "data", tmp_path / "Documents")
     doc_id = lib.create("Report")
     path = lib.get(doc_id).path
-    assert path.name == "Report.kdoc"
+    assert path.name == "Report.sdoc"
     # A copy of a known file gets its own id.
-    copy = tmp_path / "Copy.kdoc"
+    copy = tmp_path / "Copy.sdoc"
     copy.write_bytes(path.read_bytes())
     other = lib.open_path(copy)
     assert other != doc_id and DocFile(copy).meta()["id"] == other
     # Reopening the same file keeps its id.
     assert lib.open_path(path) == doc_id
-    moved = tmp_path / "Moved.kdoc"
+    moved = tmp_path / "Moved.sdoc"
     moved.write_bytes(path.read_bytes())
     lib.move(doc_id, moved)
     assert lib.get(doc_id).path == moved.resolve()
@@ -171,17 +171,36 @@ def test_untitled_files_take_their_title(tmp_path):
     lib = Library(tmp_path / "data", tmp_path / "Documents")
     doc_id = lib.create()
     path = lib.get(doc_id).path
-    assert path.name == "Untitled document.kdoc"
+    assert path.name == "Untitled document.sdoc"
     assert stat.S_IMODE(path.stat().st_mode) & 0o044   # readable, not 0600
     assert lib.rename_to_title(doc_id, "Budget: 2027") is not None
-    assert lib.get(doc_id).path.name == "Budget- 2027.kdoc"
+    assert lib.get(doc_id).path.name == "Budget- 2027.sdoc"
     # Once named, the file keeps its name.
     assert lib.rename_to_title(doc_id, "Other") is None
     # A file saved elsewhere is never renamed.
-    elsewhere = tmp_path / "Untitled document.kdoc"
+    elsewhere = tmp_path / "Untitled document.sdoc"
     elsewhere.write_bytes(lib.get(doc_id).path.read_bytes())
     other = lib.open_path(elsewhere)
     assert lib.rename_to_title(other, "Moved") is None
+
+
+def test_each_kind_has_its_extension_and_kdoc_files_still_open(tmp_path):
+    lib = Library(tmp_path / "data", tmp_path / "Documents")
+    names = {kind: lib.get(lib.create(kind=kind)).path.name
+             for kind in ("doc", "sheet", "slide", "note", "chat", "meet")}
+    assert names == {
+        "doc": "Untitled document.sdoc", "sheet": "Untitled spreadsheet.ssheet",
+        "slide": "Untitled slides.sslides", "note": "Untitled note.snote",
+        "chat": "Untitled chat.schat", "meet": "Untitled meeting.smeet"}
+    # Renaming a spreadsheet keeps its extension.
+    sheet = next(e["id"] for e in lib.entries() if e["kind"] == "sheet")
+    assert lib.rename_to_title(sheet, "Budget").name == "Budget.ssheet"
+    # A file from KherveDOC (.kdoc) is still found and opened.
+    old = tmp_path / "Documents" / "Old report.kdoc"
+    old.write_bytes((tmp_path / "Documents" / "Untitled document.sdoc").read_bytes())
+    DocFile(old).update_meta(id="kdoc-file")
+    lib.scan()
+    assert lib.get("kdoc-file").path.name == "Old report.kdoc"
 
 
 def test_pyodide_is_kept_on_this_computer(server, tmp_path):
@@ -316,7 +335,7 @@ def test_folders_are_real_folders(server):
             r = await s.post(api + f"documents/{year['id']}/children/",
                              json={"title": "Budget", "kind": "sheet"})
             budget = await r.json()
-            assert (root / "Projects" / "2026" / "Budget.kdoc").is_file()
+            assert (root / "Projects" / "2026" / "Budget.ssheet").is_file()
             # Documents hold nothing in the app.
             r = await s.post(api + f"documents/{budget['id']}/children/",
                              json={"title": "No"})
@@ -342,7 +361,7 @@ def test_folders_are_real_folders(server):
             r = await s.patch(api + f"documents/{projects['id']}/",
                               json={"title": "Work"})
             assert (await r.json())["title"] == "Work"
-            assert (root / "Work" / "2026" / "Budget.kdoc").is_file()
+            assert (root / "Work" / "2026" / "Budget.ssheet").is_file()
             got = await (await s.get(api + f"documents/{budget['id']}/")).json()
             assert got["kind"] == "sheet"
 
@@ -351,11 +370,11 @@ def test_folders_are_real_folders(server):
                              json={"target_document_id": projects["id"],
                                    "position": "right"})
             assert r.status == 200
-            assert (root / "Budget.kdoc").is_file()
+            assert (root / "Budget.ssheet").is_file()
             r = await s.post(api + f"documents/{budget['id']}/move/",
                              json={"target_document_id": projects["id"],
                                    "position": "first-child"})
-            assert (root / "Work" / "Budget.kdoc").is_file()
+            assert (root / "Work" / "Budget.ssheet").is_file()
             # A folder cannot go inside itself.
             r = await s.post(api + f"documents/{projects['id']}/move/",
                              json={"target_document_id": year["id"],
@@ -370,7 +389,7 @@ def test_folders_made_in_the_finder_show_up(tmp_path):
     doc_id = library.create("Plan")
     (tmp_path / "Documents" / "Clients" / "Acme").mkdir(parents=True)
     os.replace(library.get(doc_id).path,
-               tmp_path / "Documents" / "Clients" / "Acme" / "Plan.kdoc")
+               tmp_path / "Documents" / "Clients" / "Acme" / "Plan.sdoc")
     (tmp_path / "Documents" / ".hidden").mkdir()
 
     items = {i["title"]: i for i in library.items()}
@@ -406,7 +425,7 @@ def test_deleting_a_folder_moves_it_away(server, monkeypatch, tmp_path):
             assert r.status == 204
 
     run(go())
-    assert (trash / "Old" / "Notes.kdoc").is_file()
+    assert (trash / "Old" / "Notes.sdoc").is_file()
     assert server.library.get(doc_id) is None
     assert server.library.folder(folder) is None
 
@@ -430,7 +449,7 @@ def test_slides_and_the_examples_folder(tmp_path):
                 r = await s.post(api + "documents/", json={"kind": "slide"})
                 deck = await r.json()
                 assert deck["kind"] == "slide"
-                assert (tmp_path / "Documents" / "Untitled slides.kdoc").is_file()
+                assert (tmp_path / "Documents" / "Untitled slides.sslides").is_file()
 
                 r = await s.post(api + "documents/examples/")
                 assert r.status == 201
@@ -450,7 +469,7 @@ def test_slides_and_the_examples_folder(tmp_path):
         for item in library.items():
             kinds.setdefault(item["kind"], 0)
             kinds[item["kind"]] += 1
-        expected = sum(1 for _ in examples.rglob("*.kdoc"))
+        expected = sum(1 for _ in examples.rglob("*.s*"))
         assert sum(kinds.values()) - kinds.get("folder", 0) == 2 * expected + 1
         ids = [i["id"] for i in library.items()]
         assert len(ids) == len(set(ids))

@@ -1,6 +1,7 @@
 """Documents on disk for the standalone Sovereign Office app.
 
-A document is one ``.kdoc`` file: a ZIP archive holding
+A document is one file (``.sdoc``, ``.ssheet``, ``.sslides``, ``.snote``,
+``.schat`` or ``.smeet``, by kind; ``.kdoc`` from before): a ZIP archive holding
 
 - ``meta.json``   — ``{"id", "title", "kind", "created_at", "updated_at"}``
 - ``content.bin`` — the document's Yjs state (what the editor edits)
@@ -34,7 +35,19 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-EXTENSION = ".kdoc"
+#: Each kind of document has its own file extension, like .docx / .xlsx.
+EXTENSIONS = {"doc": ".sdoc", "sheet": ".ssheet", "slide": ".sslides",
+              "note": ".snote", "chat": ".schat", "meet": ".smeet"}
+#: Files made before (KherveDOC) still open.
+LEGACY_EXTENSION = ".kdoc"
+ALL_EXTENSIONS = (*EXTENSIONS.values(), LEGACY_EXTENSION)
+EXTENSION = EXTENSIONS["doc"]
+
+
+def is_document_name(name: str) -> bool:
+    """Whether a file name is a Sovereign Office document's."""
+    return name.lower().endswith(ALL_EXTENSIONS)
+
 KINDS = ("doc", "sheet", "slide", "note", "chat", "meet")
 UNTITLED = {"doc": "Untitled document", "sheet": "Untitled spreadsheet",
             "slide": "Untitled slides", "note": "Untitled note",
@@ -77,7 +90,7 @@ def _listed(path: Path) -> bool:
 
 @dataclass
 class DocFile:
-    """One ``.kdoc`` file."""
+    """One document file."""
 
     path: Path
 
@@ -105,7 +118,7 @@ class DocFile:
                  content: bytes | None = None,
                  add_media: dict[str, bytes] | None = None) -> None:
         old = zipfile.ZipFile(self.path) if self.path.exists() else None
-        fd, tmp = tempfile.mkstemp(prefix=".kdoc-", dir=self.path.parent)
+        fd, tmp = tempfile.mkstemp(prefix=".sov-", dir=self.path.parent)
         os.close(fd)
         # mkstemp makes the file private; keep the usual file permissions.
         mode = (self.path.stat().st_mode & 0o777) if self.path.exists() \
@@ -304,7 +317,7 @@ class Library:
                 self._folder_id(here)
             for name in files:
                 path = here / name
-                if not name.lower().endswith(EXTENSION) or not _listed(path) \
+                if not is_document_name(name) or not _listed(path) \
                         or str(path) in known:
                     continue
                 try:
@@ -355,19 +368,19 @@ class Library:
         if self.parent_of(file.path) == parent:
             return []
         target.mkdir(parents=True, exist_ok=True)
-        new = self._free_path(file.path.stem, target)
+        new = self._free_path(file.path.stem, target, suffix=file.path.suffix)
         shutil.move(str(file.path), str(new))
         self.move(item_id, new)
         return [item_id]
 
     def add_examples(self, source: Path, name: str = "Examples") -> str:
-        """Copy the examples (a folder of .kdoc files in sub-folders) into
+        """Copy the examples (a folder of document files in sub-folders) into
         the documents folder; returns the new folder's id. The copies get
         ids of their own, so the examples can be added more than once."""
         self.documents_dir.mkdir(parents=True, exist_ok=True)
         target = self._free_path(name, self.documents_dir, suffix="")
         shutil.copytree(source, target, ignore=shutil.ignore_patterns(".*"))
-        for path in sorted(target.rglob("*" + EXTENSION)):
+        for path in sorted(p for p in target.rglob("*") if is_document_name(p.name)):
             DocFile(path).update_meta(id=str(uuid.uuid4()))
         self.scan()
         return self._folder_id(target)
@@ -426,7 +439,8 @@ class Library:
         default = UNTITLED[kind]
         base = self._container(parent)
         base.mkdir(parents=True, exist_ok=True)
-        path = Path(path) if path else self._free_path(title or default, base)
+        path = Path(path) if path else self._free_path(
+            title or default, base, suffix=EXTENSIONS[kind])
         doc_id = str(uuid.uuid4())
         stamp = now_iso()
         DocFile(path).create({"id": doc_id, "title": title, "kind": kind,
@@ -437,7 +451,7 @@ class Library:
         return doc_id
 
     def open_path(self, path: Path) -> str:
-        """Register an existing ``.kdoc`` file; returns its id.
+        """Register an existing document file; returns its id.
 
         A copy of a file the library already knows (same id, other path)
         gets a new id, so both can be open at once."""
@@ -475,7 +489,7 @@ class Library:
         if not title.strip() or not self.is_auto_named(doc_id):
             return None
         old = self.get(doc_id).path
-        new = self._free_path(title, old.parent)
+        new = self._free_path(title, old.parent, suffix=old.suffix)
         os.replace(old, new)
         self.move(doc_id, new)
         return new

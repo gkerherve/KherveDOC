@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Make the Examples folder: documents, spreadsheets, slides and notes, as .kdoc
-files in src/backend/core/examples/ (added to users' documents by the
+"""Make the Examples folder: documents, spreadsheets, slides and notes, as
+document files (.sdoc, .ssheet…) in src/backend/core/examples/ (added to users' documents by the
 server, and copied to ~/Documents/Sovereign Office/Examples by the desktop app).
 
 Needs:

@@ -1,7 +1,7 @@
 """The standalone app's own Sovereign Office server, on 127.0.0.1 only.
 
 It serves the Sovereign Office web app (the static build bundled with the desktop
-app) and answers, from ``.kdoc`` files, the few API calls the editor needs:
+app) and answers, from document files (``.sdoc``, ``.ssheet``…), the few API calls the editor needs:
 settings, the user, documents and their content, image uploads, folders
 (real folders in the documents folder: what is inside, making and moving
 things there, the page tree) and the live collaboration socket

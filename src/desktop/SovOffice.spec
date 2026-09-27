@@ -20,6 +20,11 @@ sys.path.insert(0, str(ROOT))
 from sovoffice_desktop import __version__
 
 PKG = ROOT / "sovoffice_desktop"
+
+# One file type per kind of document (and .kdoc, from KherveDOC).
+DOC_TYPES = [("sdoc", "document"), ("ssheet", "spreadsheet"),
+             ("sslides", "presentation"), ("snote", "note"), ("schat", "chat"),
+             ("smeet", "meeting"), ("kdoc", "document (KherveDOC)")]
 WEB = ROOT / "web"
 if not (WEB / "index.html").is_file():
     raise SystemExit("No web app in src/desktop/web: run bin/build-desktop-web.sh")
@@ -90,19 +95,19 @@ if sys.platform == "darwin":
             "LSApplicationCategoryType": "public.app-category.productivity",
             # Lets the app reach an http:// server such as the local Docker setup.
             "NSAppTransportSecurity": {"NSAllowsArbitraryLoads": True},
-            # .kdoc files open in Sovereign Office (double-click in Finder).
+            # Documents open in Sovereign Office (double-click in Finder).
             "CFBundleDocumentTypes": [{
-                "CFBundleTypeName": "Sovereign Office document",
+                "CFBundleTypeName": f"Sovereign Office {name}",
                 "CFBundleTypeRole": "Editor",
                 "LSHandlerRank": "Owner",
-                "LSItemContentTypes": ["eu.sovoffice.app.kdoc"],
+                "LSItemContentTypes": [f"eu.sovoffice.app.{ext}"],
                 "CFBundleTypeIconFile": "icon.icns",
-            }],
+            } for ext, name in DOC_TYPES],
             "UTExportedTypeDeclarations": [{
-                "UTTypeIdentifier": "eu.sovoffice.app.kdoc",
-                "UTTypeDescription": "Sovereign Office document",
+                "UTTypeIdentifier": f"eu.sovoffice.app.{ext}",
+                "UTTypeDescription": f"Sovereign Office {name}",
                 "UTTypeConformsTo": ["public.data", "public.zip-archive"],
-                "UTTypeTagSpecification": {"public.filename-extension": ["kdoc"]},
-            }],
+                "UTTypeTagSpecification": {"public.filename-extension": [ext]},
+            } for ext, name in DOC_TYPES],
         },
     )

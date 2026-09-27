@@ -1,6 +1,6 @@
 """Live documents of the standalone app: the Hocuspocus side.
 
-Each open document is a *room*: a pycrdt Doc loaded from its ``.kdoc``
+Each open document is a *room*: a pycrdt Doc loaded from its document file
 file, the editor windows connected to it (each a WebSocket speaking the
 Hocuspocus protocol, like Sovereign Office's collaboration server), and a save
 shortly after every change. Two windows on one document stay in step,

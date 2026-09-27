@@ -17,7 +17,7 @@ from pathlib import Path
 from PySide6.QtCore import QStandardPaths
 
 from sovoffice_desktop.local.server import LocalServer
-from sovoffice_desktop.local.store import EXTENSION, Library
+from sovoffice_desktop.local.store import Library, is_document_name
 
 _server: LocalServer | None = None
 _library: Library | None = None
@@ -124,4 +124,4 @@ def stop() -> None:
 
 
 def is_document_file(path: str) -> bool:
-    return path.lower().endswith(EXTENSION)
+    return is_document_name(path)

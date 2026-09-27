@@ -1,6 +1,6 @@
 """Sovereign Office desktop app.
 
-By default it works on its own, like KherveSheet: documents are ``.kdoc``
+By default it works on its own, like KherveSheet: documents are files (``.sdoc``, ``.ssheet``…)
 files on this Mac, edited with Sovereign Office's editor served by a small local
 server inside the app (see local_mode.py). It can instead open a Sovereign Office
 server (File ▸ Sovereign Office Server…), as native windows onto that server.
@@ -65,10 +65,13 @@ from PySide6.QtWidgets import (
 )
 
 from sovoffice_desktop import __version__, local_mode, sharing
+from sovoffice_desktop.local.store import ALL_EXTENSIONS
 from sovoffice_desktop.native_menus import DocumentMenus
 from sovoffice_desktop.native_menus import install_marker as install_native_menu_marker
 
 APP_NAME = "Sovereign Office"
+DOCUMENTS_FILTER = "Sovereign Office documents ({})".format(
+    " ".join("*" + ext for ext in ALL_EXTENSIONS))
 DEFAULT_SERVER = "http://localhost:3000"
 ICON_PATH = Path(__file__).with_name("icon.png")
 NET_ERR_ABORTED = -3
@@ -363,7 +366,7 @@ class MainWindow(QMainWindow):
     def open_document(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open", str(local_mode.documents_dir()),
-            "Sovereign Office documents (*.kdoc)")
+            DOCUMENTS_FILTER)
         if path:
             open_path(path, self)
 
@@ -373,12 +376,13 @@ class MainWindow(QMainWindow):
         if path is None or doc is None:
             return
         target, _ = QFileDialog.getSaveFileName(
-            self, "Save As", str(path), "Sovereign Office documents (*.kdoc)")
+            self, "Save As", str(path),
+            f"Sovereign Office documents (*{path.suffix})")
         if not target:
             return
         target_path = Path(target)
-        if target_path.suffix.lower() != ".kdoc":
-            target_path = target_path.with_suffix(".kdoc")
+        if target_path.suffix.lower() != path.suffix.lower():
+            target_path = target_path.with_name(target_path.name + path.suffix)
         if target_path.resolve() == path.resolve():
             return
         server = local_mode.server()
@@ -793,7 +797,7 @@ def check_for_updates():
 
 
 def open_path(path: str, parent=None) -> "MainWindow | None":
-    """Open a .kdoc file in a window (the one already showing it, if any)."""
+    """Open a document file in a window (the one already showing it, if any)."""
     library = local_mode.library()
     if library is None:
         return None

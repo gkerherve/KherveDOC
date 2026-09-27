@@ -1,6 +1,6 @@
 """The examples folder: documents, spreadsheets, slides and notes to learn from.
 
-The examples are ``.kdoc`` files (the desktop app's format: a ZIP holding
+The examples are document files (``.sdoc``, ``.ssheet``… the desktop app's format: a ZIP holding
 ``meta.json`` and the Yjs ``content.bin``) in ``core/examples/<folder>/``,
 made by ``bin/make-examples.py``. Each user can add their own copy: an
 "Examples" folder with one sub-folder per kind.
@@ -15,6 +15,9 @@ from django.db import transaction
 
 from core import models
 
+#: The desktop app's document files, by kind (and .kdoc from before).
+EXTENSIONS = {".sdoc", ".ssheet", ".sslides", ".snote", ".schat", ".smeet", ".kdoc"}
+
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 
 #: Sub-folders in the order they are shown.
@@ -22,17 +25,18 @@ FOLDERS = ("Documents", "Spreadsheets", "Slides", "Notes")
 
 
 def example_files():
-    """(folder name, [.kdoc paths]) for each examples sub-folder."""
+    """(folder name, [document paths]) for each examples sub-folder."""
     found = []
     for name in FOLDERS:
         folder = EXAMPLES_DIR / name
         if folder.is_dir():
-            found.append((name, sorted(folder.glob("*.kdoc"))))
+            found.append((name, sorted(
+                p for p in folder.iterdir() if p.suffix.lower() in EXTENSIONS)))
     return found
 
 
 def read_kdoc(path):
-    """(meta, content as base64) of a .kdoc file."""
+    """(meta, content as base64) of a document file."""
     with zipfile.ZipFile(path) as archive:
         meta = json.loads(archive.read("meta.json"))
         try:

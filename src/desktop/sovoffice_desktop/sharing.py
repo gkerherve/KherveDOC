@@ -1,11 +1,11 @@
 """Sharing between the documents on this computer and a Sovereign Office server.
 
-- *Share on Sovereign Office*: a ``.kdoc`` document becomes a document on the
+- *Share on Sovereign Office*: a document file becomes a document on the
   server (content and images), where others can edit it with you live.
   The file remembers the link, so sharing it again opens that copy.
-- *Save a Copy on this Mac*: a server document becomes a ``.kdoc`` file.
+- *Save a Copy on this Mac*: a server document becomes a document file (``.sdoc``, ``.ssheet``…).
 
-Images live apart from a document's content (in the ``.kdoc`` file, or in
+Images live apart from a document's content (in the document file, or in
 the server's storage), so both directions upload the images and rewrite
 their addresses inside the content.
 """
@@ -274,7 +274,7 @@ def _download(kd: OfficeServer, url: str) -> tuple[bytes, str] | None:
 
 
 def save_copy(kd: OfficeServer, local_server, library, server_id: str) -> str:
-    """A ``.kdoc`` copy of a server document; returns its local id."""
+    """A local copy (a document file) of a server document; returns its local id."""
     info = kd.document(server_id)
     state = kd.content(server_id) or b""
     doc_id = library.create(title=info.get("title") or "",
