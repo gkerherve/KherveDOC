@@ -112,6 +112,16 @@ export function DropdownArrow() {
   const options = useMemo<DropdownMenuItem[]>(
     () => [
       {
+        label: t('New document'),
+        icon: <PlusIcon aria-hidden="true" width="24" height="24" />,
+        callback: () => {
+          void router.push('/docs/new');
+          if (isMobile) {
+            closePanel();
+          }
+        },
+      },
+      {
         label: t('New sub-doc'),
         icon: <SubDocIcon aria-hidden="true" width="24" height="24" />,
         callback: () => {
