@@ -70,7 +70,7 @@ class ListDocumentFilter(DocumentFilter):
 
     class Meta:
         model = models.Document
-        fields = ["is_creator_me", "is_favorite", "title", "q"]
+        fields = ["is_creator_me", "is_favorite", "title", "q", "kind"]
 
     # pylint: disable=unused-argument
     def filter_is_creator_me(self, queryset, name, value):

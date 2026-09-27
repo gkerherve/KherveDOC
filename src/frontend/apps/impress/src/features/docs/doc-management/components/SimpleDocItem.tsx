@@ -13,6 +13,8 @@ import { useDocUtils, useTrans } from '../hooks';
 import { Doc } from '../types';
 import { getEmojiAndTitle } from '../utils';
 
+import { FolderIcon } from './FolderIcon';
+
 const ItemTextCss = css`
   overflow: hidden;
   text-overflow: ellipsis;
@@ -41,7 +43,13 @@ export const SimpleDocItem = ({
   const { isChild } = useDocUtils(doc);
   const { relativeDate, formatDate } = useDate();
   const { emoji, titleWithoutEmoji } = getEmojiAndTitle(doc.title || '');
-  const docTitle = titleWithoutEmoji || untitledDocument;
+  const untitled =
+    doc.kind === 'folder'
+      ? t('Untitled folder')
+      : doc.kind === 'sheet'
+        ? t('Untitled spreadsheet')
+        : untitledDocument;
+  const docTitle = titleWithoutEmoji || untitled;
   const docRelativeUpdate = relativeDate(doc.updated_at);
   const itemAriaLabel = `${t('Open document {{title}}', { title: docTitle })}. ${t(
     'Last update: {{update}}',
@@ -59,7 +67,13 @@ export const SimpleDocItem = ({
       className="--docs--simple-doc-item"
       aria-label={itemAriaLabel}
     >
-      {doc.kind === 'sheet' ? (
+      {doc.kind === 'folder' ? (
+        <Icon
+          icon={<FolderIcon size={isSmallMobile ? 35 : 40} />}
+          $shrink="0"
+          data-testid="doc-folder-icon"
+        />
+      ) : doc.kind === 'sheet' ? (
         <Icon
           icon={<SpreadsheetIcon size={isSmallMobile ? 35 : 40} />}
           $shrink="0"

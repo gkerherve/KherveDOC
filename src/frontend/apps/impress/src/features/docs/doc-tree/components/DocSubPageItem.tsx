@@ -14,9 +14,11 @@ import { Box, StyledLink, Text } from '@/components';
 import {
   Doc,
   DocIcon,
+  FolderIcon,
   getEmojiAndTitle,
   useTrans,
 } from '@/docs/doc-management';
+import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
 import { useLeftPanelStore } from '@/features/left-panel';
 import { useResponsiveStore } from '@/stores';
 
@@ -254,10 +256,16 @@ const DocSubPageItemContent = (props: TreeViewNodeProps<Doc>) => {
           emoji={emoji}
           withEmojiPicker={doc.abilities.partial_update}
           defaultIcon={
-            <SubPageIcon
-              color="var(--c--contextuals--content--semantic--info--tertiary)"
-              style={{ flexShrink: 0 }}
-            />
+            doc.kind === 'folder' ? (
+              <FolderIcon size={16} />
+            ) : doc.kind === 'sheet' ? (
+              <SpreadsheetIcon size={16} />
+            ) : (
+              <SubPageIcon
+                color="var(--c--contextuals--content--semantic--info--tertiary)"
+                style={{ flexShrink: 0 }}
+              />
+            )
           }
           $size="sm"
           docId={doc.id}

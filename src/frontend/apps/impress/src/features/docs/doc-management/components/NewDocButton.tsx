@@ -21,6 +21,8 @@ import { useCreateChildDoc } from '../api/useCreateChildDoc';
 import { useImport } from '../hooks/useImport';
 import { useDocStore } from '../stores/useDocStore';
 
+import { FolderIcon } from './FolderIcon';
+
 interface NewDocButtonProps {
   onClose?: () => void;
 }
@@ -112,6 +114,16 @@ export function DropdownArrow() {
         icon: <SpreadsheetIcon />,
         callback: () => {
           void router.push('/docs/new?kind=sheet');
+          if (isMobile) {
+            closePanel();
+          }
+        },
+      },
+      {
+        label: t('New folder'),
+        icon: <FolderIcon />,
+        callback: () => {
+          void router.push('/docs/new?kind=folder');
           if (isMobile) {
             closePanel();
           }

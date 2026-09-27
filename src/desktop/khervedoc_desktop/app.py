@@ -330,7 +330,14 @@ class MainWindow(QMainWindow):
 
     def new_document(self, kind: str = "doc"):
         if not use_local():
-            self.view.load(QUrl(server_url() + ("/docs/new/?kind=sheet" if kind == "sheet" else "/docs/new/")))
+            query = f"?kind={kind}" if kind in ("sheet", "folder") else ""
+            self.view.load(QUrl(server_url() + "/docs/new/" + query))
+            return
+        if kind == "folder":
+            # A folder in ~/Documents/KherveDOC, opened here (it is a list,
+            # not a document to keep a window for).
+            folder = local_mode.library().create("New folder", kind="folder")
+            self.view.load(QUrl(local_mode.server().doc_url(folder)))
             return
         doc = local_mode.library().create(kind=kind)
         target = QUrl(local_mode.server().doc_url(doc))
@@ -463,6 +470,7 @@ class MainWindow(QMainWindow):
         file_menu = bar.addMenu("&File")
         self._action(file_menu, "New Document", lambda: self.new_document("doc"), "Ctrl+N")
         self._action(file_menu, "New Spreadsheet", lambda: self.new_document("sheet"))
+        self._action(file_menu, "New Folder", lambda: self.new_document("folder"), "Ctrl+Alt+N")
         self._action(file_menu, "Open…", self.open_document, "Ctrl+O")
         self._action(file_menu, "Home", self.go_home, "Ctrl+Shift+H")
         file_menu.addSeparator()

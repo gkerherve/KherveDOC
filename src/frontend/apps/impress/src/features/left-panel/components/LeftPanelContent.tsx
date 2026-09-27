@@ -9,6 +9,7 @@ import { DocTree } from '@/features/docs/doc-tree/components/DocTree';
 import { TreeSkeleton } from '@/features/skeletons/components/TreeSkeleton';
 
 import { LeftPanelTargetFilters } from './LefPanelTargetFilters';
+import { LeftPanelFolders } from './LeftPanelFolders';
 
 export const LeftPanelContent = () => {
   const router = useRouter();
@@ -27,6 +28,9 @@ export const LeftPanelContent = () => {
         >
           <SeparatedSection showSeparator={false}>
             <LeftPanelTargetFilters />
+          </SeparatedSection>
+          <SeparatedSection showSeparator={false}>
+            <LeftPanelFolders />
           </SeparatedSection>
         </Box>
       </>

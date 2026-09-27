@@ -49,6 +49,8 @@ export function useMoveDoc(options?: UseMoveDocOptions) {
     onSuccess(data, variables, onMutateResult, context) {
       void queryClient.invalidateQueries({ queryKey: [KEY_LIST_DOC] });
       void queryClient.invalidateQueries({ queryKey: [KEY_DOC] });
+      // A folder's page lists its children.
+      void queryClient.invalidateQueries({ queryKey: ['doc-children'] });
       if (!variables.skipTreeInvalidation) {
         void queryClient.invalidateQueries({ queryKey: [KEY_DOC_TREE] });
       }

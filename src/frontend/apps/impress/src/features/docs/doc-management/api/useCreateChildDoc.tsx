@@ -7,18 +7,23 @@ import { Doc } from '../types';
 
 import { KEY_LIST_DOC } from './useDocs';
 
-export type CreateChildDocParam = Pick<Doc, 'title'> & {
+// The folder page lists a folder's children.
+const KEY_LIST_DOC_CHILDREN = 'doc-children';
+
+export type CreateChildDocParam = Pick<Doc, 'title' | 'kind'> & {
   parentId: string;
 };
 
 export const createChildDoc = async ({
   title,
+  kind,
   parentId,
 }: CreateChildDocParam): Promise<Doc> => {
   const response = await fetchAPI(`documents/${parentId}/children/`, {
     method: 'POST',
     body: JSON.stringify({
       title,
+      kind,
     }),
   });
 
@@ -40,6 +45,9 @@ export function useCreateChildDoc({ onSuccess }: UseCreateChildDocProps) {
     onSuccess: (doc) => {
       void queryClient.resetQueries({
         queryKey: [KEY_LIST_DOC],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [KEY_LIST_DOC_CHILDREN],
       });
       void queryClient.resetQueries({
         queryKey: [KEY_LIST_SEARCH_DOC],

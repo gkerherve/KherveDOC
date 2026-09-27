@@ -22,6 +22,7 @@ import { useResponsiveStore } from '@/stores';
 import { useCollaboration } from '../hook/useCollaboration';
 
 import { BlockNoteEditor, BlockNoteReader } from './BlockNoteEditor';
+import { FolderView } from './FolderView';
 import { KHERVE_TITLE_SLOT_ID } from './KherveToolbar/slot';
 
 const DOCS_EDITOR_CLASS = '--docs--doc-editor';
@@ -96,7 +97,15 @@ interface DocEditorProps {
   doc: Doc;
 }
 
-export const DocEditor = ({ doc }: DocEditorProps) => {
+export const DocEditor = ({ doc }: DocEditorProps) =>
+  // A folder has no content of its own: no live connection, only a list.
+  doc.kind === 'folder' ? (
+    <FolderView doc={doc} />
+  ) : (
+    <DocContentEditor doc={doc} />
+  );
+
+const DocContentEditor = ({ doc }: DocEditorProps) => {
   useCollaboration(doc.id);
   const { isEditable, isLoading } = useIsCollaborativeEditable(doc);
   const isDeletedDoc = !!doc.deleted_at;

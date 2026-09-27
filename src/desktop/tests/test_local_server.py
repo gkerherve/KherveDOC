@@ -4,6 +4,7 @@ live collaboration socket, as the KherveDOC web app uses them."""
 import asyncio
 import base64
 import json
+import os
 
 import pytest
 from aiohttp import ClientSession
@@ -292,3 +293,119 @@ def test_deleting_moves_the_file_away(server, monkeypatch, tmp_path):
     run(go())
     assert not path.exists() and (trash / path.name).exists()
     assert server.library.get(doc_id) is None
+
+
+def test_folders_are_real_folders(server):
+    """Folders nest, hold documents, and are folders in the Finder."""
+    root = server.library.documents_dir
+
+    async def go():
+        api = server.origin + "/api/v1.0/"
+        async with ClientSession() as s:
+            r = await s.post(api + "documents/", json={"title": "Projects",
+                                                       "kind": "folder"})
+            assert r.status == 201
+            projects = await r.json()
+            assert projects["kind"] == "folder"
+            assert projects["abilities"]["children_create"] is True
+            assert (root / "Projects").is_dir()
+
+            r = await s.post(api + f"documents/{projects['id']}/children/",
+                             json={"title": "2026", "kind": "folder"})
+            year = await r.json()
+            r = await s.post(api + f"documents/{year['id']}/children/",
+                             json={"title": "Budget", "kind": "sheet"})
+            budget = await r.json()
+            assert (root / "Projects" / "2026" / "Budget.kdoc").is_file()
+            # Documents hold nothing in the app.
+            r = await s.post(api + f"documents/{budget['id']}/children/",
+                             json={"title": "No"})
+            assert r.status == 400
+
+            top = await (await s.get(api + "documents/")).json()
+            assert [d["title"] for d in top["results"]] == ["Projects"]
+            assert top["results"][0]["numchild"] == 1
+            inside = await (await s.get(
+                api + f"documents/{year['id']}/children/")).json()
+            assert [d["id"] for d in inside["results"]] == [budget["id"]]
+            folders = await (await s.get(api + "documents/?kind=folder")).json()
+            assert [d["title"] for d in folders["results"]] == ["Projects"]
+
+            # The page tree, from the top folder down to the spreadsheet.
+            tree = await (await s.get(
+                api + f"documents/{budget['id']}/tree/")).json()
+            assert tree["id"] == projects["id"]
+            assert tree["children"][0]["id"] == year["id"]
+            assert tree["children"][0]["children"][0]["id"] == budget["id"]
+
+            # Renaming a folder renames it on disk; what is inside follows.
+            r = await s.patch(api + f"documents/{projects['id']}/",
+                              json={"title": "Work"})
+            assert (await r.json())["title"] == "Work"
+            assert (root / "Work" / "2026" / "Budget.kdoc").is_file()
+            got = await (await s.get(api + f"documents/{budget['id']}/")).json()
+            assert got["kind"] == "sheet"
+
+            # Out to the top level (beside the top folder), then back in.
+            r = await s.post(api + f"documents/{budget['id']}/move/",
+                             json={"target_document_id": projects["id"],
+                                   "position": "right"})
+            assert r.status == 200
+            assert (root / "Budget.kdoc").is_file()
+            r = await s.post(api + f"documents/{budget['id']}/move/",
+                             json={"target_document_id": projects["id"],
+                                   "position": "first-child"})
+            assert (root / "Work" / "Budget.kdoc").is_file()
+            # A folder cannot go inside itself.
+            r = await s.post(api + f"documents/{projects['id']}/move/",
+                             json={"target_document_id": year["id"],
+                                   "position": "last-child"})
+            assert r.status == 400
+
+    run(go())
+
+
+def test_folders_made_in_the_finder_show_up(tmp_path):
+    library = Library(tmp_path / "data", tmp_path / "Documents")
+    doc_id = library.create("Plan")
+    (tmp_path / "Documents" / "Clients" / "Acme").mkdir(parents=True)
+    os.replace(library.get(doc_id).path,
+               tmp_path / "Documents" / "Clients" / "Acme" / "Plan.kdoc")
+    (tmp_path / "Documents" / ".hidden").mkdir()
+
+    items = {i["title"]: i for i in library.items()}
+    assert set(items) == {"Clients", "Acme", "Plan"}
+    assert items["Plan"]["id"] == doc_id
+    assert items["Plan"]["parent"] == items["Acme"]["id"]
+    assert items["Acme"]["parent"] == items["Clients"]["id"]
+    assert items["Clients"]["parent"] is None
+
+    # Renamed in the Finder: the same folder (its id is inside it).
+    acme = items["Acme"]["id"]
+    os.rename(tmp_path / "Documents" / "Clients" / "Acme",
+              tmp_path / "Documents" / "Clients" / "Acme Corp")
+    items = {i["title"]: i for i in library.items()}
+    assert items["Acme Corp"]["id"] == acme
+    assert library.get(doc_id).path.parent.name == "Acme Corp"
+
+
+def test_deleting_a_folder_moves_it_away(server, monkeypatch, tmp_path):
+    import shutil
+
+    from khervedoc_desktop.local import server as server_module
+    trash = tmp_path / "Trash"
+    trash.mkdir()
+    monkeypatch.setattr(server_module, "_move_to_trash",
+                        lambda p: bool(shutil.move(str(p), trash / p.name)))
+    folder = server.library.create("Old", kind="folder")
+    doc_id = server.library.create("Notes", parent=folder)
+
+    async def go():
+        async with ClientSession() as s:
+            r = await s.delete(server.origin + f"/api/v1.0/documents/{folder}/")
+            assert r.status == 204
+
+    run(go())
+    assert (trash / "Old" / "Notes.kdoc").is_file()
+    assert server.library.get(doc_id) is None
+    assert server.library.folder(folder) is None

@@ -25,7 +25,9 @@ const Page: NextPageWithLayout = () => {
   const linkReach = searchParams.get('link-reach');
   const linkRole = searchParams.get('link-role');
   const title = searchParams.get('title');
-  const kind = searchParams.get('kind') === 'sheet' ? 'sheet' : undefined;
+  const kindParam = searchParams.get('kind');
+  const kind =
+    kindParam === 'sheet' || kindParam === 'folder' ? kindParam : undefined;
   const { authenticated } = useAuth();
 
   const { mutateAsync: createDocAsync, data: doc } = useCreateDoc();
@@ -34,7 +36,8 @@ const Page: NextPageWithLayout = () => {
 
   const redirectToDoc = useCallback(
     (docId: string) => {
-      void router.push(`/docs/${docId}`);
+      // Replaces this page: going Back must not create another one.
+      void router.replace(`/docs/${docId}`);
     },
     [router],
   );
@@ -54,7 +57,8 @@ const Page: NextPageWithLayout = () => {
     }
 
     createDocAsync({
-      title: title || undefined,
+      // A folder is named from the start, as in the Finder.
+      title: title || (kind === 'folder' ? t('New folder') : undefined),
       kind,
     })
       .then((createdDoc) => {
@@ -91,6 +95,7 @@ const Page: NextPageWithLayout = () => {
       });
   }, [
     kind,
+    t,
     authenticated,
     createDocAsync,
     doc,

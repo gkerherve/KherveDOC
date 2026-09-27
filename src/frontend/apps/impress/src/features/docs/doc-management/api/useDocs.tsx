@@ -9,13 +9,14 @@ import {
   useAPIInfiniteQuery,
 } from '@/api';
 
-import { Doc, DocsOrdering } from '../types';
+import { Doc, DocKind, DocsOrdering } from '../types';
 
 export type DocsParams = {
   page: number;
   ordering?: DocsOrdering;
   is_creator_me?: boolean;
   is_favorite?: boolean;
+  kind?: DocKind;
 };
 
 export const constructParams = (params: DocsParams): URLSearchParams => {
@@ -32,6 +33,10 @@ export const constructParams = (params: DocsParams): URLSearchParams => {
   }
   if (params.is_favorite !== undefined) {
     searchParams.set('is_favorite', params.is_favorite.toString());
+  }
+
+  if (params.kind) {
+    searchParams.set('kind', params.kind);
   }
 
   return searchParams;

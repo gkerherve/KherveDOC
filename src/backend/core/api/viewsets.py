@@ -656,6 +656,10 @@ class DocumentViewSet(
         )
         queryset = queryset.filter(path__in=root_paths)
 
+        # After keeping the highest ancestors: ?kind=folder lists the folders
+        # at the top level, not the ones inside other documents.
+        queryset = filterset.filters["kind"].filter(queryset, filter_data["kind"])
+
         # Annotate favorite status and filter if applicable as late as possible
         queryset = queryset.annotate_is_favorite(user)
         queryset = filterset.filters["is_favorite"].filter(

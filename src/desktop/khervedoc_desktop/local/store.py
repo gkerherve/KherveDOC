@@ -9,6 +9,13 @@ A document is one ``.kdoc`` file: a ZIP archive holding
 The library remembers which files the app knows (a JSON list in the app's
 data folder), so the home screen can list them and the editor can find a
 document by its id.
+
+Folders are real folders inside the documents folder (``~/Documents/
+KherveDOC``), nested as deep as one likes. Each holds a small hidden file,
+``.kherve-folder``, with the folder's id, so it keeps that id when renamed
+or moved in the Finder. Folders and documents made or moved in the Finder
+show up in the app too: the library looks through the documents folder
+whenever it lists what is there.
 """
 
 from __future__ import annotations
@@ -18,6 +25,7 @@ import mimetypes
 import os
 import re
 import secrets
+import shutil
 import tempfile
 import threading
 import uuid
@@ -28,6 +36,10 @@ from pathlib import Path
 
 EXTENSION = ".kdoc"
 KINDS = ("doc", "sheet")
+FOLDER = "folder"
+FOLDER_MARK = ".kherve-folder"
+#: Where documents deleted without a system Trash go (see server.py).
+DELETED = "Deleted"
 
 META = "meta.json"
 CONTENT = "content.bin"
@@ -48,6 +60,16 @@ def _safe_name(name: str) -> str:
     """A file name part without characters macOS/Windows refuse."""
     name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "-", name).strip(" .")
     return name[:120] or "Untitled"
+
+
+def _mtime_iso(path: Path) -> str:
+    stamp = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+    return stamp.isoformat().replace("+00:00", "Z")
+
+
+def _listed(path: Path) -> bool:
+    """Shown in the app: not hidden, not the Deleted folder."""
+    return not path.name.startswith(".") and path.name != DELETED
 
 
 @dataclass
@@ -140,7 +162,7 @@ def media_type(key: str) -> str:
 
 
 class Library:
-    """The documents the app knows, by id."""
+    """The documents and folders the app knows, by id."""
 
     def __init__(self, data_dir: Path, documents_dir: Path):
         self.data_dir = Path(data_dir)
@@ -149,16 +171,24 @@ class Library:
         self._index_path = self.data_dir / "library.json"
         self._lock = threading.RLock()
         self._paths: dict[str, str] = {}
+        self._folders: dict[str, str] = {}
         if self._index_path.exists():
             try:
-                self._paths = json.loads(self._index_path.read_text())["paths"]
+                index = json.loads(self._index_path.read_text())
+                self._paths = index["paths"]
+                self._folders = index.get("folders", {})
             except (ValueError, KeyError, OSError):
-                self._paths = {}
+                self._paths, self._folders = {}, {}
 
     def _save_index(self) -> None:
         tmp = self._index_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"paths": self._paths}, indent=1))
+        tmp.write_text(json.dumps({"paths": self._paths,
+                                   "folders": self._folders}, indent=1))
         os.replace(tmp, self._index_path)
+
+    @property
+    def _root(self) -> Path:
+        return self.documents_dir.resolve()
 
     # ── Lookup ───────────────────────────────────────────────────────
     def get(self, doc_id: str) -> DocFile | None:
@@ -168,8 +198,25 @@ class Library:
             return None
         return DocFile(Path(path))
 
+    def folder(self, folder_id: str) -> Path | None:
+        with self._lock:
+            path = self._folders.get(folder_id)
+        if not path or not Path(path).is_dir():
+            return None
+        return Path(path)
+
+    def parent_of(self, path: Path) -> str | None:
+        """The id of the folder holding *path*; None at the top level
+        (the documents folder itself, or a file elsewhere on the Mac)."""
+        parent = Path(path).resolve().parent
+        root = self._root
+        if parent == root or root not in parent.parents:
+            return None
+        return self._folder_id(parent)
+
     def entries(self) -> list[dict]:
-        """Every known document that still exists: its meta and path."""
+        """Every known document that still exists: its meta, path and
+        the folder holding it."""
         with self._lock:
             items = list(self._paths.items())
         found = []
@@ -180,35 +227,198 @@ class Library:
                 continue
             meta["id"] = doc_id
             meta["path"] = path
+            meta["parent"] = self.parent_of(Path(path))
             found.append(meta)
         return found
 
+    def folder_meta(self, folder_id: str) -> dict | None:
+        """A folder described like a document: its name is its title."""
+        path = self.folder(folder_id)
+        if path is None:
+            return None
+        mark = _read_mark(path) or {}
+        return {"id": folder_id, "title": path.name, "kind": FOLDER,
+                "created_at": mark.get("created_at") or _mtime_iso(path),
+                "updated_at": _mtime_iso(path), "path": str(path),
+                "parent": self.parent_of(path)}
+
+    def folder_entries(self) -> list[dict]:
+        with self._lock:
+            ids = list(self._folders)
+        return [meta for meta in map(self.folder_meta, ids) if meta]
+
+    def items(self) -> list[dict]:
+        """Every folder and document, after looking through the
+        documents folder for what changed there."""
+        self.scan()
+        return self.folder_entries() + self.entries()
+
+    def inside(self, folder_id: str) -> tuple[list[str], list[str]]:
+        """The ids of the documents and of the folders anywhere inside a
+        folder."""
+        path = self.folder(folder_id)
+        if path is None:
+            return [], []
+        prefix = str(path) + os.sep
+        with self._lock:
+            docs = [i for i, p in self._paths.items() if p.startswith(prefix)]
+            folders = [i for i, p in self._folders.items()
+                       if p.startswith(prefix)]
+        return docs, folders
+
+    # ── Folders on disk ──────────────────────────────────────────────
+    def _folder_id(self, folder: Path) -> str:
+        """The id of a folder inside the documents folder (given one the
+        first time it is seen; a copy made in the Finder gets its own)."""
+        folder = folder.resolve()
+        folder_id = (_read_mark(folder) or {}).get("id")
+        with self._lock:
+            known = self._folders.get(folder_id) if folder_id else None
+            if known and known != str(folder) and Path(known).is_dir() \
+                    and (_read_mark(Path(known)) or {}).get("id") == folder_id:
+                folder_id = None
+            if not folder_id:
+                folder_id = str(uuid.uuid4())
+                (folder / FOLDER_MARK).write_text(json.dumps(
+                    {"id": folder_id, "created_at": now_iso()}))
+            if self._folders.get(folder_id) != str(folder):
+                self._folders[folder_id] = str(folder)
+                self._save_index()
+        return folder_id
+
+    def scan(self) -> None:
+        """Take in the folders and documents in the documents folder,
+        those made or moved in the Finder included."""
+        root = self._root
+        if not root.is_dir():
+            return
+        with self._lock:
+            known = {str(Path(p).resolve()) for p in self._paths.values()}
+        for here, dirs, files in os.walk(root):
+            dirs[:] = sorted(d for d in dirs if _listed(Path(d)))
+            here = Path(here)
+            if here != root:
+                self._folder_id(here)
+            for name in files:
+                path = here / name
+                if not name.lower().endswith(EXTENSION) or not _listed(path) \
+                        or str(path) in known:
+                    continue
+                try:
+                    self.open_path(path)
+                except (OSError, ValueError, KeyError, zipfile.BadZipFile):
+                    continue
+        with self._lock:
+            gone = [i for i, p in self._folders.items() if not Path(p).is_dir()]
+            for folder_id in gone:
+                del self._folders[folder_id]
+            if gone:
+                self._save_index()
+
+    def create_folder(self, title: str = "", parent: str | None = None) -> str:
+        """A new folder (in *parent*, else at the top); returns its id."""
+        base = self._container(parent)
+        base.mkdir(parents=True, exist_ok=True)
+        path = self._free_path(title or "New folder", base, suffix="")
+        path.mkdir()
+        return self._folder_id(path)
+
+    def rename_folder(self, folder_id: str, title: str) -> list[str]:
+        """Rename a folder after its new title; returns the ids of the
+        documents inside, whose files have moved with it."""
+        old = self.folder(folder_id)
+        if old is None or not title.strip() or _safe_name(title) == old.name:
+            return []
+        new = self._free_path(title, old.parent, suffix="")
+        os.rename(old, new)
+        return self._relocated(old, new)
+
+    def move_item(self, item_id: str, parent: str | None) -> list[str]:
+        """Put a document or a folder in folder *parent* (None: the top
+        level); returns the ids of the documents whose files moved."""
+        target = self._container(parent).resolve()
+        folder = self.folder(item_id)
+        if folder is not None:
+            if target == folder or folder in target.parents:
+                raise ValueError("A folder cannot go inside itself.")
+            if folder.parent == target:
+                return []
+            new = self._free_path(folder.name, target, suffix="")
+            shutil.move(str(folder), str(new))
+            return self._relocated(folder, new)
+        file = self.get(item_id)
+        if file is None:
+            raise KeyError(item_id)
+        if self.parent_of(file.path) == parent:
+            return []
+        target.mkdir(parents=True, exist_ok=True)
+        new = self._free_path(file.path.stem, target)
+        shutil.move(str(file.path), str(new))
+        self.move(item_id, new)
+        return [item_id]
+
+    def forget_folder(self, folder_id: str) -> None:
+        """Forget a folder and everything in it (it went to the Trash)."""
+        docs, folders = self.inside(folder_id)
+        with self._lock:
+            for doc_id in docs:
+                self._paths.pop(doc_id, None)
+            for inner in folders + [folder_id]:
+                self._folders.pop(inner, None)
+            self._save_index()
+
+    def _container(self, parent: str | None) -> Path:
+        if not parent:
+            return self.documents_dir
+        folder = self.folder(parent)
+        if folder is None:
+            raise KeyError(parent)
+        return folder
+
+    def _relocated(self, old: Path, new: Path) -> list[str]:
+        """A folder moved: point what was inside at its new place."""
+        old_s, new_s = str(old), str(Path(new).resolve())
+        moved = []
+        with self._lock:
+            for table in (self._paths, self._folders):
+                for key, value in table.items():
+                    if value == old_s or value.startswith(old_s + os.sep):
+                        table[key] = new_s + value[len(old_s):]
+                        if table is self._paths:
+                            moved.append(key)
+            self._save_index()
+        return moved
+
     # ── Adding documents ─────────────────────────────────────────────
-    def _free_path(self, title: str, folder: Path) -> Path:
+    def _free_path(self, title: str, folder: Path,
+                   suffix: str = EXTENSION) -> Path:
         base = _safe_name(title)
-        path = folder / f"{base}{EXTENSION}"
+        path = folder / f"{base}{suffix}"
         n = 2
         while path.exists():
-            path = folder / f"{base} {n}{EXTENSION}"
+            path = folder / f"{base} {n}{suffix}"
             n += 1
         return path
 
     def create(self, title: str = "", kind: str = "doc",
-               path: Path | None = None) -> str:
-        """A new, empty document file; returns its id."""
+               path: Path | None = None, parent: str | None = None) -> str:
+        """A new, empty document file (in folder *parent*, else at the
+        top); returns its id. A folder is made for kind "folder"."""
+        if kind == FOLDER:
+            return self.create_folder(title, parent)
         if kind not in KINDS:
             kind = "doc"
         default = "Untitled spreadsheet" if kind == "sheet" \
             else "Untitled document"
-        self.documents_dir.mkdir(parents=True, exist_ok=True)
-        path = Path(path) if path else self._free_path(
-            title or default, self.documents_dir)
+        base = self._container(parent)
+        base.mkdir(parents=True, exist_ok=True)
+        path = Path(path) if path else self._free_path(title or default, base)
         doc_id = str(uuid.uuid4())
         stamp = now_iso()
         DocFile(path).create({"id": doc_id, "title": title, "kind": kind,
                               "created_at": stamp, "updated_at": stamp})
         with self._lock:
-            self._paths[doc_id] = str(path)
+            self._paths[doc_id] = str(path.resolve())
             self._save_index()
         return doc_id
 
@@ -234,13 +444,14 @@ class Library:
         return doc_id
 
     def is_auto_named(self, doc_id: str) -> bool:
-        """Still "Untitled document…" in the documents folder: the name
-        the app chose, which the document's title may replace."""
+        """Still "Untitled document…" in the documents folder (or a folder
+        in it): the name the app chose, which the title may replace."""
         file = self.get(doc_id)
         if file is None:
             return False
         path = file.path.resolve()
-        return (path.parent == self.documents_dir.resolve()
+        root = self._root
+        return ((path.parent == root or root in path.parents)
                 and re.fullmatch(r"Untitled (document|spreadsheet)( \d+)?",
                                  path.stem) is not None)
 
@@ -265,3 +476,11 @@ class Library:
         with self._lock:
             self._paths.pop(doc_id, None)
             self._save_index()
+
+
+def _read_mark(folder: Path) -> dict | None:
+    try:
+        mark = json.loads((folder / FOLDER_MARK).read_text())
+    except (OSError, ValueError):
+        return None
+    return mark if isinstance(mark, dict) else None

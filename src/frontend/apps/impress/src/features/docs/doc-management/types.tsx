@@ -48,8 +48,9 @@ export enum LinkRole {
 
 export type Base64 = string;
 
-/** A text document or a KherveCELL spreadsheet. */
-export type DocKind = 'doc' | 'sheet';
+/** A text document, a KherveCELL spreadsheet, or a folder (which holds
+ * nothing but other documents: its children). */
+export type DocKind = 'doc' | 'sheet' | 'folder';
 
 export interface Doc {
   id: string;

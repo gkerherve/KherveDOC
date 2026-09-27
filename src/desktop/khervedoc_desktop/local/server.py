@@ -2,10 +2,12 @@
 
 It serves the KherveDOC web app (the static build bundled with the desktop
 app) and answers, from ``.kdoc`` files, the few API calls the editor needs:
-settings, the user, documents and their content, image uploads, and the
-live collaboration socket (Hocuspocus, see rooms.py). Everything else in
-the API answers "nothing here", and the document abilities keep the
-server-only features (sharing, page tree, history, AI) hidden.
+settings, the user, documents and their content, image uploads, folders
+(real folders in the documents folder: what is inside, making and moving
+things there, the page tree) and the live collaboration socket
+(Hocuspocus, see rooms.py). Everything else in the API answers "nothing
+here", and the document abilities keep the server-only features (sharing,
+history, AI) hidden.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ from pathlib import Path
 from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
 from .rooms import Client, Rooms
-from .store import Library, media_type, now_iso
+from .store import FOLDER, Library, media_type, now_iso
 
 log = logging.getLogger(__name__)
 
@@ -57,9 +59,11 @@ def _local_user(language: str = "en-us") -> dict:
             "is_first_connection": False}
 
 
-def doc_json(meta: dict) -> dict:
-    """A document as the web app expects it (see Doc in types.tsx): the
-    owner of a private document, with only what works locally allowed."""
+def doc_json(meta: dict, numchild: int = 0, depth: int = 1) -> dict:
+    """A document or folder as the web app expects it (see Doc in
+    types.tsx): the owner of a private document, with only what works
+    locally allowed."""
+    is_folder = meta.get("kind") == FOLDER
     abilities = {name: False for name in (
         "accesses_manage", "accesses_view", "ai_proxy", "ai_transform",
         "ai_translate", "children_create", "children_list",
@@ -71,7 +75,10 @@ def doc_json(meta: dict) -> dict:
     abilities.update({name: True for name in (
         "retrieve", "update", "partial_update", "content_retrieve",
         "content_patch", "formatted_content", "attachment_upload",
-        "media_auth", "can_edit", "destroy")})
+        "media_auth", "can_edit", "destroy", "move")})
+    # Only folders hold other documents in the app.
+    for name in ("children_create", "children_list", "tree"):
+        abilities[name] = is_folder or name == "tree"
     abilities["link_select_options"] = {"restricted": None,
                                         "authenticated": [], "public": []}
     return {
@@ -81,10 +88,10 @@ def doc_json(meta: dict) -> dict:
         "computed_link_reach": "restricted", "computed_link_role": None,
         "created_at": meta.get("created_at") or now_iso(),
         "updated_at": meta.get("updated_at") or now_iso(),
-        "creator": LOCAL_USER_ID, "deleted_at": None, "depth": 1,
+        "creator": LOCAL_USER_ID, "deleted_at": None, "depth": depth,
         "excerpt": None, "is_favorite": False, "link_reach": "restricted",
         "link_role": "reader", "nb_accesses_ancestors": 1,
-        "nb_accesses_direct": 1, "numchild": 0,
+        "nb_accesses_direct": 1, "numchild": numchild,
         "path": "0000000", "user_role": "owner",
     }
 
@@ -216,7 +223,9 @@ class LocalServer:
         r.add_post(API + "documents/{id}/attachment-upload/", self.upload)
         r.add_get(API + "documents/{id}/tree/", self.tree)
         r.add_get(API + "documents/{id}/threads/", self.empty_list)
-        r.add_get(API + "documents/{id}/children/", self.empty_page)
+        r.add_get(API + "documents/{id}/children/", self.children)
+        r.add_post(API + "documents/{id}/children/", self.create_child)
+        r.add_post(API + "documents/{id}/move/", self.move)
         r.add_get(API + "documents/{id}/accesses/", self.empty_list)
         r.add_get(API + "documents/{id}/invitations/", self.empty_page)
         r.add_get(API + "documents/{id}/versions/", self.empty_page)
@@ -282,32 +291,46 @@ class LocalServer:
             self.language = body["language"]
         return web.json_response(_local_user(self.language))
 
-    # ── Documents ────────────────────────────────────────────────────
+    # ── Documents and folders ────────────────────────────────────────
+    @staticmethod
+    def _not_found() -> web.HTTPNotFound:
+        return web.HTTPNotFound(text=json.dumps({"detail": "Not found."}),
+                                content_type="application/json")
+
     def _meta(self, doc_id: str) -> dict:
+        """A document's meta (not a folder's: they have no content)."""
         file = self.library.get(doc_id)
         if file is None:
-            raise web.HTTPNotFound(
-                text=json.dumps({"detail": "Not found."}),
-                content_type="application/json")
+            raise self._not_found()
         meta = file.meta()
         meta["id"] = doc_id
         return meta
 
-    async def list_docs(self, request: web.Request) -> web.Response:
+    def _item(self, item_id: str) -> dict:
+        """A folder's or a document's meta."""
+        folder = self.library.folder_meta(item_id)
+        if folder is not None:
+            return folder
+        meta = self._meta(item_id)
+        meta["parent"] = self.library.parent_of(self.library.get(item_id).path)
+        return meta
+
+    def _json(self, meta: dict, items: list[dict] | None = None,
+              depth: int = 1) -> dict:
+        numchild = 0
+        if meta.get("kind") == FOLDER:
+            items = self.library.items() if items is None else items
+            numchild = sum(1 for i in items if i.get("parent") == meta["id"])
+        return doc_json(meta, numchild=numchild, depth=depth)
+
+    def _page(self, request: web.Request, entries: list[dict],
+              items: list[dict], ordering: str = "-updated_at") -> web.Response:
         q = request.query
-        entries = self.library.entries()
-        title = (q.get("title") or "").lower()
-        if title:
-            entries = [e for e in entries
-                       if title in (e.get("title") or "").lower()]
-        if q.get("is_favorite") in ("true", "1"):
-            entries = []
-        ordering = q.get("ordering", "-updated_at")
+        ordering = q.get("ordering", ordering)
         key = ordering.lstrip("-")
-        if key not in ("updated_at", "created_at", "title"):
-            key = "updated_at"
-        entries.sort(key=lambda e: (e.get(key) or ""),
-                     reverse=ordering.startswith("-"))
+        if key in ("updated_at", "created_at", "title"):
+            entries.sort(key=lambda e: (str(e.get(key) or "").lower()),
+                         reverse=ordering.startswith("-"))
         size = max(1, min(int(q.get("page_size") or 20), 200))
         page = max(1, int(q.get("page") or 1))
         chunk = entries[(page - 1) * size:page * size]
@@ -318,62 +341,171 @@ class LocalServer:
             params["page"] = str(page + 1)
             next_url = str(request.url.with_query(params))
         return web.json_response({
-            "count": len(entries), "next": next_url,
-            "previous": None, "results": [doc_json(e) for e in chunk]})
+            "count": len(entries), "next": next_url, "previous": None,
+            "results": [self._json(e, items) for e in chunk]})
+
+    async def list_docs(self, request: web.Request) -> web.Response:
+        """The top level: folders and documents not in a folder."""
+        q = request.query
+        items = self.library.items()
+        entries = [e for e in items if e.get("parent") is None]
+        title = (q.get("title") or q.get("q") or "").lower()
+        if title:
+            entries = [e for e in entries
+                       if title in (e.get("title") or "").lower()]
+        if q.get("kind"):
+            entries = [e for e in entries
+                       if (e.get("kind") or "doc") == q["kind"]]
+        if q.get("is_favorite") in ("true", "1"):
+            entries = []
+        return self._page(request, entries, items)
+
+    async def children(self, request: web.Request) -> web.Response:
+        folder_id = request.match_info["id"]
+        items = self.library.items()
+        if self.library.folder(folder_id) is None:
+            self._meta(folder_id)   # a document: 404 if unknown, else empty
+            return self._page(request, [], items)
+        entries = [e for e in items if e.get("parent") == folder_id]
+        # Folders first, then by name, as in the Finder.
+        entries.sort(key=lambda e: (e.get("kind") != FOLDER,
+                                    (e.get("title") or "").lower()))
+        return self._page(request, entries, items, ordering="finder")
 
     async def search_docs(self, request: web.Request) -> web.Response:
-        """Search the documents on this computer by title."""
+        """Search the folders and documents on this computer by title."""
         q = (request.query.get("q") or "").strip().lower()
-        entries = [e for e in self.library.entries()
+        items = self.library.items()
+        entries = [e for e in items
                    if not q or q in (e.get("title") or "").lower()]
         entries.sort(key=lambda e: e.get("updated_at") or "", reverse=True)
         return web.json_response({
             "count": len(entries), "next": None, "previous": None,
-            "results": [doc_json(e) for e in entries[:50]]})
+            "results": [self._json(e, items) for e in entries[:50]]})
 
-    async def create_doc(self, request: web.Request) -> web.Response:
+    async def _create(self, request: web.Request,
+                      parent: str | None) -> web.Response:
         body = {}
         if request.content_type == "application/json":
             body = await request.json()
-        doc_id = self.library.create(title=body.get("title") or "",
-                                     kind=body.get("kind") or "doc")
-        return web.json_response(doc_json(self._meta(doc_id)), status=201)
+        try:
+            item_id = self.library.create(title=body.get("title") or "",
+                                          kind=body.get("kind") or "doc",
+                                          parent=parent)
+        except KeyError:
+            raise self._not_found()
+        return web.json_response(self._json(self._item(item_id)), status=201)
+
+    async def create_doc(self, request: web.Request) -> web.Response:
+        return await self._create(request, None)
+
+    async def create_child(self, request: web.Request) -> web.Response:
+        parent = request.match_info["id"]
+        if self.library.folder(parent) is None:
+            self._meta(parent)
+            raise web.HTTPBadRequest(
+                text=json.dumps({"detail": "Only folders hold documents "
+                                           "in the KherveDOC app."}),
+                content_type="application/json")
+        return await self._create(request, parent)
 
     async def get_doc(self, request: web.Request) -> web.Response:
-        return web.json_response(doc_json(self._meta(request.match_info["id"])))
+        return web.json_response(self._json(self._item(request.match_info["id"])))
+
+    def _relocate(self, doc_ids: list[str]) -> None:
+        for doc_id in doc_ids:
+            self.rooms.relocate(doc_id)
+
+    def _flush_inside(self, folder_id: str) -> None:
+        for doc_id in self.library.inside(folder_id)[0]:
+            self.rooms.flush_doc(doc_id)
 
     async def update_doc(self, request: web.Request) -> web.Response:
-        doc_id = request.match_info["id"]
-        self._meta(doc_id)
+        item_id = request.match_info["id"]
         body = await request.json()
+        if self.library.folder(item_id) is not None:
+            # A folder's title is its name in the Finder.
+            if (body.get("title") or "").strip():
+                self._flush_inside(item_id)
+                self._relocate(self.library.rename_folder(item_id,
+                                                          body["title"]))
+            return web.json_response(self._json(self._item(item_id)))
+        self._meta(item_id)
         changes = {}
         if "title" in body:
             changes["title"] = body["title"] or ""
-        meta = self.library.get(doc_id).update_meta(**changes)
-        meta["id"] = doc_id
+        meta = self.library.get(item_id).update_meta(**changes)
+        meta["id"] = item_id
         if changes.get("title"):
-            room = self.rooms.get(doc_id)
+            room = self.rooms.get(item_id)
             if room is not None:
                 room.flush()
-            if self.library.rename_to_title(doc_id, changes["title"]):
-                self.rooms.relocate(doc_id)
-        return web.json_response(doc_json(meta))
+            if self.library.rename_to_title(item_id, changes["title"]):
+                self.rooms.relocate(item_id)
+        return web.json_response(self._json(self._item(item_id)))
+
+    async def move(self, request: web.Request) -> web.Response:
+        """Into a folder (first/last child) or beside an item (left/right,
+        so into that item's folder, or to the top level)."""
+        item_id = request.match_info["id"]
+        self._item(item_id)
+        body = await request.json()
+        target_id = body.get("target_document_id") or ""
+        target = self._item(target_id)
+        position = body.get("position") or "last-child"
+        if position in ("first-child", "last-child"):
+            if target.get("kind") != FOLDER:
+                raise web.HTTPBadRequest(
+                    text=json.dumps({"detail": "Only folders hold documents "
+                                               "in the KherveDOC app."}),
+                    content_type="application/json")
+            parent = target_id
+        elif position in ("left", "right", "first-sibling", "last-sibling"):
+            parent = target.get("parent")
+        else:
+            raise web.HTTPBadRequest(text="unknown position")
+        if self.library.folder(item_id) is not None:
+            self._flush_inside(item_id)
+        else:
+            self.rooms.flush_doc(item_id)
+        try:
+            moved = self.library.move_item(item_id, parent)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(
+                text=json.dumps({"detail": str(exc)}),
+                content_type="application/json")
+        self._relocate(moved)
+        return web.json_response({"message": "Document moved successfully."})
 
     async def delete_doc(self, request: web.Request) -> web.Response:
-        """Move the document's file to the Trash (restorable from there)."""
-        doc_id = request.match_info["id"]
-        self._meta(doc_id)
+        """Move the document's file (or the folder, with everything in it)
+        to the Trash, restorable from there."""
+        item_id = request.match_info["id"]
+        folder = self.library.folder(item_id)
+        if folder is not None:
+            docs = self.library.inside(item_id)[0]
+            for doc_id in docs:
+                self._close(doc_id)
+            self.library.forget_folder(item_id)
+            if not _move_to_trash(folder):
+                raise web.HTTPInternalServerError(text="Could not move to Trash")
+            return web.Response(status=204)
+        self._meta(item_id)
+        path = self.library.get(item_id).path
+        self._close(item_id)
+        self.library.forget(item_id)
+        if not _move_to_trash(path):
+            raise web.HTTPInternalServerError(text="Could not move to Trash")
+        return web.Response(status=204)
+
+    def _close(self, doc_id: str) -> None:
+        """Save an open document and let go of it."""
         room = self.rooms.get(doc_id)
         if room is not None:
             room.flush()
             for client in list(room.clients):
                 room.leave(client)
-        path = self.library.get(doc_id).path
         self.rooms.forget(doc_id)
-        self.library.forget(doc_id)
-        if not _move_to_trash(path):
-            raise web.HTTPInternalServerError(text="Could not move to Trash")
-        return web.Response(status=204)
 
     async def get_content(self, request: web.Request) -> web.Response:
         doc_id = request.match_info["id"]
@@ -402,10 +534,31 @@ class LocalServer:
         return web.json_response({"can_edit": True})
 
     async def tree(self, request: web.Request) -> web.Response:
-        meta = self._meta(request.match_info["id"])
-        node = doc_json(meta)
-        node.update({"children": [], "numchild": 0})
-        return web.json_response(node)
+        """The page tree opened on an item: its top folder, with what each
+        folder on the way down holds."""
+        item_id = request.match_info["id"]
+        self._item(item_id)
+        items = self.library.items()
+        by_id = {i["id"]: i for i in items}
+        chain = [item_id]
+        while (parent := by_id.get(chain[0], {}).get("parent")) in by_id:
+            chain.insert(0, parent)
+
+        def node(meta: dict, depth: int, path: str) -> dict:
+            out = self._json(meta, items, depth)
+            out["path"] = path
+            out["children"] = []
+            if meta["id"] in chain[:-1] or (meta["id"] == item_id
+                                            and meta.get("kind") == FOLDER):
+                inside = [i for i in items if i.get("parent") == meta["id"]]
+                inside.sort(key=lambda i: (i.get("kind") != FOLDER,
+                                           (i.get("title") or "").lower()))
+                out["children"] = [node(child, depth + 1,
+                                        path + f"{n + 1:07d}")
+                                   for n, child in enumerate(inside)]
+            return out
+
+        return web.json_response(node(by_id[chain[0]], 1, "0000001"))
 
     async def upload(self, request: web.Request) -> web.Response:
         doc_id = request.match_info["id"]
