@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make the Examples folder: documents, spreadsheets and slides, as .kdoc
+"""Make the Examples folder: documents, spreadsheets, slides and notes, as .kdoc
 files in src/backend/core/examples/ (added to users' documents by the
 server, and copied to ~/Documents/Sovereign Office/Examples by the desktop app).
 
@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "examples"))
 
 import docs  # noqa: E402
+import notes  # noqa: E402
 import sheets  # noqa: E402
 import slides  # noqa: E402
 from common import OUT  # noqa: E402
@@ -29,4 +30,5 @@ if __name__ == "__main__":
     print("Documents");     docs.build()      # noqa: E702
     print("Spreadsheets");  sheets.build()    # noqa: E702
     print("Slides");        slides.build()    # noqa: E702
+    print("Notes");         notes.build()     # noqa: E702
     print(f"→ {OUT}")

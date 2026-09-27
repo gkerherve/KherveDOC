@@ -15,6 +15,7 @@ import {
   toolbarCss,
 } from '@/docs/doc-editor/components/SovToolbar/parts';
 import { KHERVE_TOOLBAR_SLOT_ID } from '@/docs/doc-editor/components/SovToolbar/slot';
+import { useEditorStore } from '@/docs/doc-editor/stores/useEditorStore';
 
 import { PenTool } from './InkCanvas';
 
@@ -27,6 +28,8 @@ export const PEN_COLORS = [
   '#f2c200',
 ];
 export const PEN_SIZES = [2, 4, 8];
+
+type ListType = 'bulletListItem' | 'numberedListItem' | 'checkListItem';
 
 interface NoteToolbarProps {
   readOnly: boolean;
@@ -98,6 +101,54 @@ export const NoteToolbar = ({
 }: NoteToolbarProps) => {
   const { t } = useTranslation();
   const [target, setTarget] = useState<HTMLElement | null>(null);
+  const { editor } = useEditorStore();
+  // Re-render with the caret, so the list buttons show where it is.
+  const [, setTick] = useState(0);
+  useEffect(
+    () => editor?.onSelectionChange(() => setTick((n) => n + 1)),
+    [editor],
+  );
+
+  const caretType = (() => {
+    try {
+      return editor?.getTextCursorPosition().block.type;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  /** The selected lines become list items, or plain text again. */
+  const toggleList = (type: ListType) => {
+    if (!editor) {
+      return;
+    }
+    const next = caretType === type ? 'paragraph' : type;
+    const blocks = editor.getSelection()?.blocks ?? [
+      editor.getTextCursorPosition().block,
+    ];
+    editor.transact(() => {
+      for (const block of blocks) {
+        if (Array.isArray(block.content)) {
+          editor.updateBlock(block, { type: next });
+        }
+      }
+    });
+    editor.focus();
+  };
+
+  const lists: { type: ListType; icon: string; label: string }[] = [
+    {
+      type: 'bulletListItem',
+      icon: 'format_list_bulleted',
+      label: t('Bulleted list'),
+    },
+    {
+      type: 'numberedListItem',
+      icon: 'format_list_numbered',
+      label: t('Numbered list'),
+    },
+    { type: 'checkListItem', icon: 'checklist', label: t('Checklist') },
+  ];
 
   useEffect(() => {
     setTarget(document.getElementById(KHERVE_TOOLBAR_SLOT_ID));
@@ -124,6 +175,20 @@ export const NoteToolbar = ({
           pressed={drawing}
           onClick={() => onDrawing(true)}
         />
+        {!drawing && editor && (
+          <>
+            <Separator />
+            {lists.map(({ type, icon, label }) => (
+              <ToolbarButton
+                key={type}
+                icon={icon}
+                label={label}
+                pressed={caretType === type}
+                onClick={() => toggleList(type)}
+              />
+            ))}
+          </>
+        )}
         {drawing && (
           <>
             <Separator />

@@ -26,9 +26,14 @@ def test_api_documents_examples_folder():
     assert root.get_role(user) == "owner"
 
     folders = {f.title: f for f in root.get_children()}
-    assert set(folders) == {"Documents", "Spreadsheets", "Slides"}
+    assert set(folders) == {"Documents", "Spreadsheets", "Slides", "Notes"}
     kinds = {name: {d.kind for d in f.get_children()} for name, f in folders.items()}
-    assert kinds == {"Documents": {"doc"}, "Spreadsheets": {"sheet"}, "Slides": {"slide"}}
+    assert kinds == {
+        "Documents": {"doc"},
+        "Spreadsheets": {"sheet"},
+        "Slides": {"slide"},
+        "Notes": {"note"},
+    }
     expected = sum(len(paths) for _, paths in example_files())
     assert sum(f.get_children_count() for f in folders.values()) == expected >= 30
 

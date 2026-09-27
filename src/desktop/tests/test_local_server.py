@@ -437,7 +437,7 @@ def test_slides_and_the_examples_folder(tmp_path):
                 first = (await r.json())["id"]
                 inside = await (await s.get(api + f"documents/{first}/children/")).json()
                 assert [d["title"] for d in inside["results"]] == [
-                    "Documents", "Slides", "Spreadsheets"]
+                    "Documents", "Notes", "Slides", "Spreadsheets"]
                 r = await s.post(api + "documents/examples/")
                 second = (await r.json())["id"]
                 assert second != first
@@ -451,7 +451,7 @@ def test_slides_and_the_examples_folder(tmp_path):
             kinds.setdefault(item["kind"], 0)
             kinds[item["kind"]] += 1
         expected = sum(1 for _ in examples.rglob("*.kdoc"))
-        assert kinds["doc"] + kinds["sheet"] + kinds["slide"] == 2 * expected + 1
+        assert sum(kinds.values()) - kinds.get("folder", 0) == 2 * expected + 1
         ids = [i["id"] for i in library.items()]
         assert len(ids) == len(set(ids))
     finally:

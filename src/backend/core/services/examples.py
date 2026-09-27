@@ -1,4 +1,4 @@
-"""The examples folder: documents, spreadsheets and slides to learn from.
+"""The examples folder: documents, spreadsheets, slides and notes to learn from.
 
 The examples are ``.kdoc`` files (the desktop app's format: a ZIP holding
 ``meta.json`` and the Yjs ``content.bin``) in ``core/examples/<folder>/``,
@@ -18,7 +18,7 @@ from core import models
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 
 #: Sub-folders in the order they are shown.
-FOLDERS = ("Documents", "Spreadsheets", "Slides")
+FOLDERS = ("Documents", "Spreadsheets", "Slides", "Notes")
 
 
 def example_files():
