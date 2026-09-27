@@ -1,7 +1,8 @@
 /**
- * Charts floating over the grid. Each is drawn by matplotlib in the engine
- * (like KherveSheet's charts) and redrawn when its data changes; it can be
- * moved, resized, opened for editing (double-click) or deleted.
+ * Charts and pictures floating over the grid. A chart is drawn by
+ * matplotlib in the engine (like KherveSheet's charts) and redrawn when its
+ * data changes; it can be moved, resized, opened for editing (double-click)
+ * or deleted. A picture is shown as it is, and moved, resized or deleted.
  */
 import {
   MouseEvent as ReactMouseEvent,
@@ -18,6 +19,7 @@ import { GridGeometry, HEADER_HEIGHT, ROW_HEADER_WIDTH } from './SheetGrid';
 
 const MIN_WIDTH = 160;
 const MIN_HEIGHT = 120;
+const MIN_PICTURE = 24;
 
 interface ChartLayerProps {
   workbook: SheetWorkbook;
@@ -111,6 +113,7 @@ const ChartBox = ({
   onEdit: (id: string) => void;
 }) => {
   const { t } = useTranslation();
+  const picture = spec.picture;
   const [image, setImage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(true);
@@ -137,9 +140,12 @@ const ChartBox = ({
   const box = live ?? { left, top, width: spec.width, height: spec.height };
 
   // Draw when the chart or any value changes (a burst of edits: once).
-  const key = drawingKey(spec);
+  const key = picture ? '' : drawingKey(spec);
   const dataVersion = workbook.dataVersion;
   useEffect(() => {
+    if (!key) {
+      return;
+    }
     let cancelled = false;
     setDrawing(true);
     const timer = window.setTimeout(() => {
@@ -220,11 +226,19 @@ const ChartBox = ({
               left: Math.max(0, g.left + dx),
               top: Math.max(0, g.top + dy),
             }
-          : {
-              ...last,
-              width: Math.max(MIN_WIDTH, g.width + dx),
-              height: Math.max(MIN_HEIGHT, g.height + dy),
-            };
+          : picture
+            ? // A picture keeps its proportions.
+              {
+                ...last,
+                width: Math.max(MIN_PICTURE, g.width + dx),
+                height:
+                  (Math.max(MIN_PICTURE, g.width + dx) * g.height) / g.width,
+              }
+            : {
+                ...last,
+                width: Math.max(MIN_WIDTH, g.width + dx),
+                height: Math.max(MIN_HEIGHT, g.height + dy),
+              };
       setLive({ ...last });
     };
     const onUp = () => {
@@ -262,12 +276,12 @@ const ChartBox = ({
         height: box.height,
       }}
       role="img"
-      aria-label={spec.title || t('Chart')}
+      aria-label={picture ? t('Picture') : spec.title || t('Chart')}
       tabIndex={0}
       onMouseDown={(e) => startGesture(e, 'move')}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (!readOnly) {
+        if (!readOnly && !picture) {
           onEdit(id);
         }
       }}
@@ -278,14 +292,22 @@ const ChartBox = ({
           e.preventDefault();
           workbook.removeChart(id);
           onSelect(null);
-        } else if (!readOnly && e.key === 'Enter') {
+        } else if (!readOnly && !picture && e.key === 'Enter') {
           onEdit(id);
         } else if (e.key === 'Escape') {
           onSelect(null);
         }
       }}
     >
-      {image && !problem && (
+      {picture && (
+        <img
+          src={picture}
+          alt=""
+          draggable={false}
+          style={{ opacity: live?.width ? 0.6 : 1 }}
+        />
+      )}
+      {!picture && image && !problem && (
         <img
           src={image}
           alt=""
@@ -293,21 +315,23 @@ const ChartBox = ({
           style={{ opacity: live?.width ? 0.6 : 1 }}
         />
       )}
-      {(problem || (!image && drawing)) && (
+      {!picture && (problem || (!image && drawing)) && (
         <div className="kc-chart-message">
           {problem ?? t('Drawing the chart…')}
         </div>
       )}
       {selected && !readOnly && (
         <>
-          <button
-            type="button"
-            className="kc-chart-edit"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => onEdit(id)}
-          >
-            {t('Edit chart')}
-          </button>
+          {!picture && (
+            <button
+              type="button"
+              className="kc-chart-edit"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => onEdit(id)}
+            >
+              {t('Edit chart')}
+            </button>
+          )}
           <div
             className="kc-chart-resize"
             title={t('Drag to resize')}

@@ -625,7 +625,7 @@ export class SheetWorkbook {
     const charts: ChartSpec[] = [];
     this.yCharts.forEach((raw) => {
       const spec = parseJson<ChartSpec>(raw);
-      if (spec) {
+      if (spec && !spec.picture) {
         charts.push(spec);
       }
     });

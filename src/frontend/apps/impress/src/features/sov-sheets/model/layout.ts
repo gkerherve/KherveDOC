@@ -142,6 +142,8 @@ export interface ChartSpec {
   logX?: boolean;
   logY?: boolean;
   trendlines?: ChartTrendline[];
+  /** A picture instead of a chart (a data: URL); the rest is unused. */
+  picture?: string;
 }
 
 /** An .xlsx file in the shared layout (khervesheet/core/xlsx.py). */

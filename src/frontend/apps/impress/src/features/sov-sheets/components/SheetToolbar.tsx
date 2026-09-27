@@ -48,6 +48,7 @@ interface SheetToolbarProps {
   onSort: (descending: boolean) => void;
   onFreeze: () => void;
   onInsertChart: () => void;
+  onInsertPicture: () => void;
   onSolver: () => void;
   solverOpen: boolean;
   onImportXlsx: () => void;
@@ -95,6 +96,7 @@ export const SheetToolbar = ({
   onSort,
   onFreeze,
   onInsertChart,
+  onInsertPicture,
   onSolver,
   solverOpen,
   onImportXlsx,
@@ -225,6 +227,11 @@ export const SheetToolbar = ({
           icon="insert_chart"
           label={t('Insert chart (from the selected cells)')}
           onClick={onInsertChart}
+        />
+        <ToolbarButton
+          icon="image"
+          label={t('Insert a picture')}
+          onClick={onInsertPicture}
         />
         <ToolbarButton
           icon="query_stats"

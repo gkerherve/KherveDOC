@@ -199,6 +199,15 @@ const picturesFor = async (
     if (!inside(spec.row, spec.col)) {
       continue;
     }
+    if (spec.picture) {
+      pictures.push({
+        left: x(spec.col) + (spec.dx ?? 0),
+        top: (spec.row - range.top) * ROW_HEIGHT + (spec.dy ?? 0),
+        width: spec.width,
+        url: spec.picture,
+      });
+      continue;
+    }
     const result = await workbook.renderChart(spec);
     if (result.svg) {
       pictures.push({

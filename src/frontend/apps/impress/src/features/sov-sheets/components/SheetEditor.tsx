@@ -20,6 +20,7 @@ import type { Menu } from '@/docs/doc-editor/components/SovToolbar/MenuBar';
 import { useNativeMenus } from '@/docs/doc-editor/components/SovToolbar/nativeMenus';
 import { useStyleElement } from '@/docs/doc-editor/page-setup/useStyleElement';
 import { takePendingImport } from '@/docs/doc-import/pendingImport';
+import { pictureDataUrl } from '@/features/sov-slides/components/SlideEditor';
 
 import { useCellPresence, useSheetWorkbook } from '../hooks';
 import { currentRegion, rangeRef, suggestChart } from '../model/charts';
@@ -153,6 +154,7 @@ const SheetWorkbookView = ({
   const [notice, setNotice] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
   const xlsxInput = useRef<HTMLInputElement | null>(null);
+  const pictureInput = useRef<HTMLInputElement | null>(null);
   const nativeMenus = useRef<Menu[]>([]);
   useNativeMenus(nativeMenus);
 
@@ -540,6 +542,13 @@ const SheetWorkbookView = ({
       return;
     }
     event.preventDefault();
+    const image = Array.from(event.clipboardData.files).find((f) =>
+      f.type.startsWith('image/'),
+    );
+    if (image) {
+      void insertPicture(image);
+      return;
+    }
     const text = event.clipboardData.getData('text/plain');
     const r = selectionRange(selection);
     const edits: [string, number, number, string][] = [];
@@ -676,6 +685,33 @@ const SheetWorkbookView = ({
     } else {
       // Freeze the rows above and the columns left of the active cell.
       workbook.setFreeze(activeId, focus.row, focus.col);
+    }
+  };
+
+  // ── Pictures ─────────────────────────────────────────────────────
+  /** A picture floating over the grid at the selected cell. */
+  const insertPicture = async (file: File) => {
+    if (!activeId || readOnly) {
+      return;
+    }
+    try {
+      const { src, w, h } = await pictureDataUrl(file);
+      const scale = Math.min(1, 480 / w, 360 / h);
+      const r = selectionRange(selection);
+      setChartId(
+        workbook.addChart({
+          sheetId: activeId,
+          row: r.top,
+          col: r.left,
+          width: Math.round(w * scale),
+          height: Math.round(h * scale),
+          type: 'Line',
+          series: [],
+          picture: src,
+        }),
+      );
+    } catch {
+      setNotice(t('{{name}} is not a picture.', { name: file.name }));
     }
   };
 
@@ -942,6 +978,9 @@ const SheetWorkbookView = ({
           showSeparator: true,
         }),
         option(t('Chart'), insertChart, { disabled: readOnly }),
+        option(t('Picture…'), () => pictureInput.current?.click(), {
+          disabled: readOnly,
+        }),
         option(
           t('Sheet'),
           () => {
@@ -1017,6 +1056,7 @@ const SheetWorkbookView = ({
           onSort={sort}
           onFreeze={toggleFreeze}
           onInsertChart={insertChart}
+          onInsertPicture={() => pictureInput.current?.click()}
           onSolver={() => {
             setChartPanel(null);
             setSolverOpen((open) => !open);
@@ -1239,6 +1279,19 @@ const SheetWorkbookView = ({
           />
         )}
       </div>
+      <input
+        ref={pictureInput}
+        type="file"
+        hidden
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) {
+            void insertPicture(file);
+          }
+        }}
+      />
       <input
         ref={xlsxInput}
         type="file"
