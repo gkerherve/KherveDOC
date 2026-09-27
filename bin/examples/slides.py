@@ -1,4 +1,4 @@
-"""Example presentations, in KherveDOC Slides' layout (see the web app's
+"""Example presentations, in SOV Slides' layout (see the web app's
 kherve-slides/model/types.ts): Yjs maps of JSON strings, on a 960 × 540
 slide."""
 
@@ -95,11 +95,11 @@ class Deck:
 # ── The presentations ────────────────────────────────────────────────
 def welcome():
     blue, orange = "#2466b0", "#f0a030"
-    d = Deck("Welcome to KherveDOC Slides", "kherve")
+    d = Deck("Welcome to SOV Slides", "kherve")
     shapes = ["rect", "roundRect", "ellipse", "triangle", "diamond", "arrowRight", "star"]
     colors = ["#2466b0", "#3aa0d8", "#20bf55", "#f0a030", "#ee4266", "#8c5e3c", "#9467bd"]
     d.add(
-        title_slide("Welcome to KherveDOC Slides", "Presentations you make together — and show anywhere",
+        title_slide("Welcome to SOV Slides", "Presentations you make together — and show anywhere",
                     notes="Press F5 (or the Present button) to show this presentation full screen. "
                           "Use the arrow keys to move, Esc to stop."),
         slide(title("Getting around"),
@@ -135,7 +135,7 @@ def welcome():
                       "File → Print / Save as PDF prints one slide per page"),
               S("rect", M, 420, 380, 70, "#d9622b", ".pptx", 30, style={"bold": True}),
               line(M + 400, 453, 120, arrow=True, color="#333333"),
-              S("rect", M + 540, 420, 300, 70, blue, "KherveDOC", 30, style={"bold": True})),
+              S("rect", M + 540, 420, 300, 70, blue, "Sovereign Office", 30, style={"bold": True})),
         slide(title("Themes"),
               bullets("Design → pick a theme: colours and fonts change on every slide\n"
                       "Each slide can also have its own background colour\n"

@@ -1,4 +1,4 @@
-import { columnName } from '@/features/kherve-cell/model/layout';
+import { columnName } from '@/features/sov-sheets/model/layout';
 
 /** The copy of a spreadsheet table kept in the document, as display text. */
 export interface SpreadsheetSnapshot {

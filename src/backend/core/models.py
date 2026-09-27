@@ -933,7 +933,7 @@ class DocumentManager(MP_NodeManager.from_queryset(DocumentQuerySet)):
 
 # pylint: disable=too-many-public-methods
 class DocumentKind(models.TextChoices):
-    """What a document holds: text (BlockNote), a spreadsheet (KherveCELL),
+    """What a document holds: text (BlockNote), a spreadsheet (SOV Sheets),
     slides (a presentation), or nothing but other documents (a folder, whose
     content is its children)."""
 

@@ -1,6 +1,6 @@
 #!/bin/sh
-# Build the KherveDOC web app for the standalone desktop app and copy it to
-# src/desktop/web (bundled by PyInstaller; see src/desktop/KherveDOC.spec).
+# Build the Sovereign Office web app for the standalone desktop app and copy it to
+# src/desktop/web (bundled by PyInstaller; see src/desktop/SovOffice.spec).
 #
 # The build talks to the server it is loaded from (the app's own local
 # server), has no service worker, and includes PDF / Word / ODT export.
@@ -22,4 +22,4 @@ cp -R "$APP/out" "$DEST"
 VERSION=$(node -p "require('$APP/package.json').version" 2>/dev/null \
   || python3 -c "import json;print(json.load(open('$APP/package.json'))['version'])")
 printf '{"version": "%s"}\n' "$VERSION" > "$DEST/kherve-web.json"
-echo "KherveDOC web $VERSION → $DEST ($(du -sh "$DEST" | cut -f1))"
+echo "Sovereign Office web $VERSION → $DEST ($(du -sh "$DEST" | cut -f1))"

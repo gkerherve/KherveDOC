@@ -107,8 +107,8 @@ def convert(blocks) -> bytes:
 # ── The documents ────────────────────────────────────────────────────
 def welcome():
     return flat(
-        H(1, "Welcome to KherveDOC 👋"),
-        P(r("KherveDOC", "bold"), " is where you write documents, build spreadsheets and "
+        H(1, "Welcome to Sovereign Office 👋"),
+        P(r("Sovereign Office", "bold"), " is where you write documents, build spreadsheets and "
           "make slides — on your own or together, live. This folder is full of examples: "
           "open them, change them, copy what you like."),
         H(2, "What is in the Examples folder"),
@@ -133,7 +133,7 @@ def welcome():
            "Every change is saved on its own. Earlier versions are in the ⋯ menu, under History."),
         H(2, "Files from Word, Excel and PowerPoint"),
         P("Use ", r("New ▾ → Import a document", "bold"), " to open a ", r(".docx", "code"), ", ",
-          r(".xlsx", "code"), " or ", r(".pptx", "code"), " file: it becomes a KherveDOC document, "
+          r(".xlsx", "code"), " or ", r(".pptx", "code"), " file: it becomes a Sovereign Office document, "
           "spreadsheet or slides. Going the other way, every kind can be downloaded in the same "
           "formats (Word, Excel, PowerPoint) and as PDF."),
         QUOTE("Tip: drag documents onto a folder in the list to move them there. Folders can "
@@ -219,7 +219,7 @@ def project_plan():
            "Bastien — support and pilot"),
         H(2, "Budget"),
         P("Total: ", r("48 000 €", "bold"), " (see the ", r("Household budget", "italic"),
-          " spreadsheet for how to keep track of money in KherveDOC)."),
+          " spreadsheet for how to keep track of money in Sovereign Office)."),
     )
 
 
@@ -347,7 +347,7 @@ def lab_report():
                ["0", "90.0"], ["4", "76.8"], ["8", "66.2"], ["12", "57.8"], ["16", "51.0"],
                ["20", "45.6"], ["24", "41.3"], ["28", "37.8"]]),
         P("The full data and the fitted curve are in the ", r("Experiment with a trendline", "italic"),
-          " spreadsheet: KherveDOC fits the curve for you (chart → trendline → Exponential Decay)."),
+          " spreadsheet: Sovereign Office fits the curve for you (chart → trendline → Exponential Decay)."),
         H(2, "Analysis"),
         P("The same fit, done in Python:"),
         CODE("import numpy as np\nfrom scipy.optimize import curve_fit\n\n"
@@ -416,7 +416,7 @@ def travel():
 
 def cheat_sheet():
     return flat(
-        H(1, "KherveDOC cheat sheet"),
+        H(1, "Sovereign Office cheat sheet"),
         P("Everything you can type to format as you write."),
         H(2, "Blocks"),
         TABLE([["Block", "Type at the start of a line", "Or"],
@@ -428,7 +428,7 @@ def cheat_sheet():
                ["Code", "```", "/code"],
                ["Table", "—", "/table"],
                ["Picture", "—", "/image, or paste / drop a picture"],
-               ["Spreadsheet", "—", "/spreadsheet (a live table from a KherveDOC spreadsheet)"]]),
+               ["Spreadsheet", "—", "/spreadsheet (a live table from a Sovereign Office spreadsheet)"]]),
         H(2, "Text"),
         TABLE([["Style", "Markdown", "Shortcut"],
                [[r("Bold", "bold")], "**text**", "⌘/Ctrl + B"],
@@ -442,7 +442,7 @@ def cheat_sheet():
           ", ", r("purple", color="purple"), " — or a highlight: ", r("yellow", bg="yellow"), ", ",
           r("green", bg="green"), ", ", r("blue", bg="blue"), "."),
         H(2, "Code blocks keep their colours"),
-        CODE("function greet(name) {\n  return `Hello, ${name}!`;\n}\n\nconsole.log(greet('KherveDOC'));",
+        CODE("function greet(name) {\n  return `Hello, ${name}!`;\n}\n\nconsole.log(greet('Sovereign Office'));",
              "javascript"),
     )
 
@@ -489,7 +489,7 @@ def newsletter():
 
 
 DOCUMENTS = [
-    ("Welcome to KherveDOC", welcome),
+    ("Welcome to Sovereign Office", welcome),
     ("Meeting notes", meeting_notes),
     ("Project plan", project_plan),
     ("Formal letter", letter),

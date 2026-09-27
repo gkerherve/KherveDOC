@@ -13,10 +13,10 @@ import {
   useProviderStore,
 } from '@/docs/doc-management';
 import { useAuth } from '@/features/auth/';
-import { SheetDocEditor } from '@/features/kherve-cell';
-import { SlideDocEditor } from '@/features/kherve-slides';
 import { SkeletonEditorCore, useSkeletonStore } from '@/features/skeletons';
 import { useSkeletonFadeOut } from '@/features/skeletons/hooks/useFadeOut';
+import { SheetDocEditor } from '@/features/sov-sheets';
+import { SlideDocEditor } from '@/features/sov-slides';
 import { useAnalytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
@@ -24,7 +24,7 @@ import { useCollaboration } from '../hook/useCollaboration';
 
 import { BlockNoteEditor, BlockNoteReader } from './BlockNoteEditor';
 import { FolderView } from './FolderView';
-import { KHERVE_TITLE_SLOT_ID } from './KherveToolbar/slot';
+import { KHERVE_TITLE_SLOT_ID } from './SovToolbar/slot';
 
 const DOCS_EDITOR_CLASS = '--docs--doc-editor';
 

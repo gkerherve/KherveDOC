@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Gather the Pyodide files KherveCELL (spreadsheets) needs, so the desktop
+"""Gather the Pyodide files SOV Sheets (spreadsheets) needs, so the desktop
 app works offline from its first launch; they land in src/desktop/pyodide
-and PyInstaller bundles them (see src/desktop/KherveDOC.spec).
+and PyInstaller bundles them (see src/desktop/SovOffice.spec).
 
 - Pyodide itself and the packages the engine loads (numpy, scipy,
   matplotlib and their dependencies, micropip), from the Pyodide CDN;
@@ -76,7 +76,7 @@ def main() -> None:
         manifest[package] = files
     (DEST / "pypi.json").write_text(json.dumps(manifest, indent=1))
     size = sum(f.stat().st_size for f in DEST.rglob("*") if f.is_file())
-    print(f"Pyodide for KherveCELL → {DEST} ({size / 1e6:.0f} MB)")
+    print(f"Pyodide for SOV Sheets → {DEST} ({size / 1e6:.0f} MB)")
 
 
 if __name__ == "__main__":

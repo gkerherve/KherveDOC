@@ -18,7 +18,7 @@ const useExportAGPL = ModulesExport?.useExportAGPL;
 
 declare global {
   interface Window {
-    /** A PDF (base64) the KherveDOC desktop app prints instead of the page. */
+    /** A PDF (base64) the Sovereign Office desktop app prints instead of the page. */
     __khervePrintPdf?: string;
   }
 }

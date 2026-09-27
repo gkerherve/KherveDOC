@@ -14,8 +14,8 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
-import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
-import { readSpreadsheet } from '@/features/kherve-cell/model/reader';
+import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
+import { readSpreadsheet } from '@/features/sov-sheets/model/reader';
 
 import type { DocsBlockNoteEditor } from '../../types';
 
@@ -30,7 +30,7 @@ import {
 export { SpreadsheetTableView };
 
 /**
- * A table from a KherveDOC spreadsheet, like an embedded Excel range in
+ * A table from a Sovereign Office spreadsheet, like an embedded Excel range in
  * Word. The document keeps a copy of the values (for printing, exports and
  * readers who cannot open the spreadsheet); whoever can edit the document
  * and open the spreadsheet refreshes it when the document opens, or with

@@ -43,7 +43,7 @@ interface ThemeCustomization {
 }
 
 export interface ConfigResponse {
-  /** Served by the KherveDOC desktop app's own local server: documents
+  /** Served by the Sovereign Office desktop app's own local server: documents
    * are files on the user's computer, with no sharing, trash or search
    * across users. */
   KHERVE_LOCAL?: boolean;
@@ -106,7 +106,7 @@ export const getConfig = async (): Promise<ConfigResponse> => {
 
 export const KEY_CONFIG = 'config';
 
-/** True in the KherveDOC desktop app working on its own (no server). */
+/** True in the Sovereign Office desktop app working on its own (no server). */
 export const useIsLocalApp = () => useConfig().data?.KHERVE_LOCAL === true;
 
 export function useConfig() {

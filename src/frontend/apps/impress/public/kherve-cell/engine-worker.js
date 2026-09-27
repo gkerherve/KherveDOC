@@ -1,5 +1,5 @@
 /*
- * KherveCELL calculation worker: KherveSheet's engine (Python) running in
+ * SOV Sheets calculation worker: KherveSheet's engine (Python) running in
  * Pyodide, off the page's main thread.
  *
  * Messages in:  {id, op, payload, needs} with op one of the kherve_bridge
@@ -11,7 +11,7 @@
  */
 /* global importScripts, loadPyodide, WorkerGlobalScope */
 const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
-// The KherveDOC desktop app serves Pyodide itself (cached on the computer,
+// The Sovereign Office desktop app serves Pyodide itself (cached on the computer,
 // so spreadsheets work offline); the website uses the CDN.
 const PYODIDE_LOCAL = new URL("pyodide/", self.location.href).href;
 function hasLocalPyodide() {
@@ -30,7 +30,7 @@ importScripts(PYODIDE + "pyodide.js");
 
 /*
  * Python cells (=PY) run here with this page's origin, so they could act
- * as the signed-in user on KherveDOC's own server. Before any Python runs,
+ * as the signed-in user on Sovereign Office's own server. Before any Python runs,
  * the worker may only reach the engine's own files on this origin; other
  * websites are reached without cookies (no one's session goes with them).
  */
@@ -39,7 +39,7 @@ importScripts(PYODIDE + "pyodide.js");
   const ownFiles = new URL(".", self.location.href).pathname;
   const allowed = (url) => url.origin !== origin || url.pathname.startsWith(ownFiles);
   const refuse = (url) =>
-    new TypeError("KherveCELL: Python cannot reach " + url.pathname + " on KherveDOC");
+    new TypeError("SOV Sheets: Python cannot reach " + url.pathname + " on Sovereign Office");
   const realFetch = self.fetch.bind(self);
   const guardedFetch = function fetch(input, init) {
     const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url, self.location.href);

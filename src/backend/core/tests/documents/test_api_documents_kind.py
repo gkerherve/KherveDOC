@@ -1,5 +1,5 @@
 """
-Documents are text (BlockNote) or spreadsheets (KherveCELL): the kind is
+Documents are text (BlockNote) or spreadsheets (SOV Sheets): the kind is
 chosen at creation and kept for the document's life.
 """
 

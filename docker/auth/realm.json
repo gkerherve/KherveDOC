@@ -1,7 +1,7 @@
 {
   "id": "ccf4fd40-4286-474d-854a-4714282a8bec",
   "realm": "impress",
-  "displayName": "KherveDOC",
+  "displayName": "Sovereign Office",
   "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,

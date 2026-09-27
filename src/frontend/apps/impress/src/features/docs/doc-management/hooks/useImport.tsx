@@ -21,7 +21,7 @@ interface AcceptedMap {
 }
 
 /**
- * Files KherveDOC reads in the browser (also in the desktop app, offline):
+ * Files Sovereign Office reads in the browser (also in the desktop app, offline):
  * each becomes a new document of its kind, which reads the file once open
  * (see doc-import/).
  */

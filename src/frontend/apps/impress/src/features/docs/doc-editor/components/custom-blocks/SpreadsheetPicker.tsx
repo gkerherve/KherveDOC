@@ -6,9 +6,9 @@ import { css } from 'styled-components';
 
 import { fetchAPI } from '@/api';
 import { Box, Text } from '@/components';
-import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
-import { address } from '@/features/kherve-cell/model/layout';
-import { readSpreadsheet } from '@/features/kherve-cell/model/reader';
+import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
+import { address } from '@/features/sov-sheets/model/layout';
+import { readSpreadsheet } from '@/features/sov-sheets/model/reader';
 
 import { SpreadsheetTableView } from './SpreadsheetTableView';
 import { snapshotOfRows } from './spreadsheetSnapshot';
@@ -35,7 +35,7 @@ const listSpreadsheets = async (): Promise<SheetDoc[]> => {
   for (let page = 0; page < 10 && path; page++) {
     const response = await fetchAPI(path);
     if (!response.ok) {
-      throw new Error(`KherveDOC answered ${response.status}`);
+      throw new Error(`Sovereign Office answered ${response.status}`);
     }
     const data = (await response.json()) as {
       results: SheetDoc[];

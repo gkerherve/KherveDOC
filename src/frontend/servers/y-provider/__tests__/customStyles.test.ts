@@ -73,7 +73,7 @@ describe('custom text styles', () => {
     ]);
   });
 
-  test('keep KherveCELL spreadsheet tables', async () => {
+  test('keep SOV Sheets spreadsheet tables', async () => {
     const snapshot = JSON.stringify({
       columns: ['Sample', 'Mass'],
       rows: [['A', '1.5']],

@@ -1,4 +1,4 @@
-"""Example spreadsheets, in KherveCELL's shared layout (see the web app's
+"""Example spreadsheets, in SOV Sheets's shared layout (see the web app's
 kherve-cell/model/layout.ts): Yjs maps of JSON strings. Every formula is
 checked with KherveSheet's own engine before the file is written."""
 

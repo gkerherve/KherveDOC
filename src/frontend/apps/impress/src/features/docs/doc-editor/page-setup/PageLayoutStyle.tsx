@@ -9,7 +9,7 @@ import { useStyleElement } from './useStyleElement';
 
 declare global {
   interface Window {
-    /** Read by the KherveDOC desktop app to set up its printer. */
+    /** Read by the Sovereign Office desktop app to set up its printer. */
     __khervePageSetup?: {
       paperWidthCm: number;
       paperHeightCm: number;

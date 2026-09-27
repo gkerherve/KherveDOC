@@ -73,7 +73,7 @@ import BlockNoteAI from './AI';
 import { BlockNoteSuggestionMenu } from './BlockNoteSuggestionMenu';
 import { BlockNoteToolbar } from './BlockNoteToolBar/BlockNoteToolbar';
 import { DocsSideMenu } from './DocsSideMenu/DocsSideMenu';
-import { KherveToolbar } from './KherveToolbar/KherveToolbar';
+import { SovToolbar } from './SovToolbar/SovToolbar';
 import {
   CalloutBlock,
   PdfBlock,
@@ -398,7 +398,7 @@ export const BlockNoteEditor = ({ doc, provider }: BlockNoteEditorProps) => {
         {aiBlockNoteAllowed && AIMenuController && AIMenu && (
           <AIMenuController aiMenu={AIMenu} />
         )}
-        <KherveToolbar aiAllowed={aiBlockNoteAllowed} />
+        <SovToolbar aiAllowed={aiBlockNoteAllowed} />
         <BlockNoteSuggestionMenu aiAllowed={aiBlockNoteAllowed} />
         <BlockNoteToolbar aiAllowed={aiBlockNoteAllowed} />
         <DocsSideMenu />

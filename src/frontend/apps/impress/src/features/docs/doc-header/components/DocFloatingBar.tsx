@@ -3,7 +3,7 @@ import { css } from 'styled-components';
 import { Box } from '@/components';
 import { CardFloatingBar, FloatingBar } from '@/components/FloatingBar';
 import { useIsLocalApp } from '@/core/config/api/useConfig';
-import { KHERVE_TITLE_SLOT_ID } from '@/docs/doc-editor/components/KherveToolbar/slot';
+import { KHERVE_TITLE_SLOT_ID } from '@/docs/doc-editor/components/SovToolbar/slot';
 import { FindReplace } from '@/docs/doc-find-replace/components/FindReplace';
 import { useFindReplaceStore } from '@/docs/doc-find-replace/stores/useFindReplaceStore';
 import { DocToolBox } from '@/docs/doc-management/components/DocToolBox';

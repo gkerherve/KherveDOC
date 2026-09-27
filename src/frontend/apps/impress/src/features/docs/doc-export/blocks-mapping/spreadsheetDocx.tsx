@@ -11,7 +11,7 @@ import {
 import { parseSnapshot } from '../../doc-editor/components/custom-blocks/spreadsheetSnapshot';
 import { DocsExporterDocx } from '../types';
 
-/** The document's copy of a KherveCELL table, as a Word table. */
+/** The document's copy of a SOV Sheets table, as a Word table. */
 export const blockMappingSpreadsheetDocx: DocsExporterDocx['mappings']['blockMapping']['spreadsheet'] =
   (block) => {
     const snapshot = parseSnapshot(block.props.snapshot);

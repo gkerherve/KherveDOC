@@ -10,7 +10,7 @@ const cell = (text: string, key: number) =>
     React.createElement('text:p', {}, text),
   );
 
-/** The document's copy of a KherveCELL table, as an ODF table. */
+/** The document's copy of a SOV Sheets table, as an ODF table. */
 export const blockMappingSpreadsheetODT: DocsExporterODT['mappings']['blockMapping']['spreadsheet'] =
   (block) => {
     const snapshot = parseSnapshot(block.props.snapshot);

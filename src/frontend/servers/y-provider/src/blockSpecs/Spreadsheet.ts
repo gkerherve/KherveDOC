@@ -1,6 +1,6 @@
 import { createBlockSpec } from '@blocknote/core';
 
-// Mirrors the frontend's SpreadsheetBlock (a KherveCELL table): the server
+// Mirrors the frontend's SpreadsheetBlock (a SOV Sheets table): the server
 // only needs the props, and renders the stored copy for HTML conversion.
 const spreadsheetConfig = {
   type: 'spreadsheet' as const,

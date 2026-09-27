@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Make the Examples folder: documents, spreadsheets and slides, as .kdoc
 files in src/backend/core/examples/ (added to users' documents by the
-server, and copied to ~/Documents/KherveDOC/Examples by the desktop app).
+server, and copied to ~/Documents/Sovereign Office/Examples by the desktop app).
 
 Needs:
 - the development stack running (make run): documents are turned into the

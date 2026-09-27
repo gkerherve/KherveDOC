@@ -1,5 +1,5 @@
 """The standalone app's local server: documents, content, uploads and the
-live collaboration socket, as the KherveDOC web app uses them."""
+live collaboration socket, as the Sovereign Office web app uses them."""
 
 import asyncio
 import base64
@@ -10,9 +10,9 @@ import pytest
 from aiohttp import ClientSession
 from pycrdt import Doc, Text, create_sync_message, create_update_message
 
-from khervedoc_desktop.local import hocuspocus as hp
-from khervedoc_desktop.local.server import LocalServer
-from khervedoc_desktop.local.store import DocFile, Library
+from sovoffice_desktop.local import hocuspocus as hp
+from sovoffice_desktop.local.server import LocalServer
+from sovoffice_desktop.local.store import DocFile, Library
 
 
 @pytest.fixture
@@ -203,7 +203,7 @@ def test_pyodide_is_kept_on_this_computer(server, tmp_path):
 def test_media_addresses_are_rewritten():
     from pycrdt import XmlElement, XmlFragment
 
-    from khervedoc_desktop.sharing import LOCAL_MEDIA, media_urls, rewrite_media
+    from sovoffice_desktop.sharing import LOCAL_MEDIA, media_urls, rewrite_media
     doc = Doc()
     frag = doc.get("document-store", type=XmlFragment)
     local = "http://127.0.0.1:38471/media/de4bd815-85e1-492a-a675-7388766936f2/" \
@@ -275,7 +275,7 @@ def test_deleting_moves_the_file_away(server, monkeypatch, tmp_path):
     # Not the real Trash: a stand-in that just moves the file.
     import shutil
 
-    from khervedoc_desktop.local import server as server_module
+    from sovoffice_desktop.local import server as server_module
     trash = tmp_path / "Trash"
     trash.mkdir()
     monkeypatch.setattr(server_module, "_move_to_trash",
@@ -392,7 +392,7 @@ def test_folders_made_in_the_finder_show_up(tmp_path):
 def test_deleting_a_folder_moves_it_away(server, monkeypatch, tmp_path):
     import shutil
 
-    from khervedoc_desktop.local import server as server_module
+    from sovoffice_desktop.local import server as server_module
     trash = tmp_path / "Trash"
     trash.mkdir()
     monkeypatch.setattr(server_module, "_move_to_trash",

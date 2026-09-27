@@ -87,7 +87,7 @@ Y_PROVIDER_API_KEY=yprovider-api-key
 DOCSPEC_API_URL=http://docspec:3000/conversion
 
 # Theme customization
-THEME_CUSTOMIZATION_FILE_PATH=/app/impress/configuration/theme/khervedoc.json
+THEME_CUSTOMIZATION_FILE_PATH=/app/impress/configuration/theme/sovoffice.json
 THEME_CUSTOMIZATION_CACHE_TIMEOUT=15
 
 # Indexer (disabled by default)

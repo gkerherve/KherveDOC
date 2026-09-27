@@ -11,7 +11,7 @@ const styles = StyleSheet.create({
   header: { fontWeight: 'bold', backgroundColor: '#f1f3f5' },
 });
 
-/** The document's copy of a KherveCELL table. */
+/** The document's copy of a SOV Sheets table. */
 export const blockMappingSpreadsheetPDF: DocsExporterPDF['mappings']['blockMapping']['spreadsheet'] =
   (block) => {
     const snapshot = parseSnapshot(block.props.snapshot);

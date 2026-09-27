@@ -9,9 +9,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Text } from '@/components';
-import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
-import { SlidesIcon } from '@/features/kherve-slides/components/SlidesIcon';
 import { useLeftPanelStore } from '@/features/left-panel/stores/useLeftPanelStore';
+import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
+import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
 import ArrowDownIcon from '@/icons/arrow-drop-down.svg';
 import SubDocIcon from '@/icons/doc-new-subdoc.svg';
 import PlusIcon from '@/icons/doc-plus.svg';

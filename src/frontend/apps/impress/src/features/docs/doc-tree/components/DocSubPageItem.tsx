@@ -18,9 +18,9 @@ import {
   getEmojiAndTitle,
   useTrans,
 } from '@/docs/doc-management';
-import { SpreadsheetIcon } from '@/features/kherve-cell/components/SpreadsheetIcon';
-import { SlidesIcon } from '@/features/kherve-slides/components/SlidesIcon';
 import { useLeftPanelStore } from '@/features/left-panel';
+import { SpreadsheetIcon } from '@/features/sov-sheets/components/SpreadsheetIcon';
+import { SlidesIcon } from '@/features/sov-slides/components/SlidesIcon';
 import { useResponsiveStore } from '@/stores';
 
 import { useTreeItemActions } from '../hooks/useTreeItemActions';

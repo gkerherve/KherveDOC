@@ -9,7 +9,7 @@ import { css } from 'styled-components';
 
 import { Box, Loading } from '@/components';
 import { DEFAULT_QUERY_RETRY } from '@/core';
-import { KHERVE_TOOLBAR_SLOT_ID } from '@/docs/doc-editor/components/KherveToolbar/slot';
+import { KHERVE_TOOLBAR_SLOT_ID } from '@/docs/doc-editor/components/SovToolbar/slot';
 import { DocFloatingBar } from '@/docs/doc-header/components/DocFloatingBar';
 import {
   Doc,
